@@ -1,0 +1,80 @@
+[
+  {
+    "id": "1",
+    "slug": "zero-trust-architecture-2025-guide",
+    "title": "Zero Trust Architecture in 2025: A Practical Implementation Guide",
+    "excerpt": "Zero Trust is no longer aspirational — it is operational mandate for any enterprise handling sensitive data. Here is how to move from perimeter thinking to continuous verification.",
+    "content": "Zero Trust is built on one principle: never trust, always verify. Every user, device, and network flow must be authenticated and authorised, regardless of whether it originates inside or outside the corporate perimeter.\n\nThe first pillar is identity-centric access. Deploy adaptive MFA for all users and workloads. Integrate your IdP with every application, not just the ones IT manages. Privileged accounts must live in a PAM solution — no exceptions.\n\nThe second pillar is device health. Your endpoint agents should continuously assess device posture: OS patch level, EDR status, disk encryption, and certificate validity. Access decisions should incorporate this signal dynamically.\n\nThe third pillar is micro-segmentation. East-west traffic is where attackers hide after the initial compromise. Segment your network by application and data classification, not by VLAN. Software-defined segmentation scales; firewalls-as-the-only-control do not.\n\nThe fourth pillar is data-centric protection. Classify data at creation, encrypt it at rest and in transit, and enforce DLP policies inline. Your CASB should inspect every SaaS transaction against your data classification policy.\n\nZero Trust is not a product — it is an architecture. Start with identity, earn quick wins, and build confidence through measurement.",
+    "author": "Marcus Elliot",
+    "authorRole": "Principal Security Architect",
+    "publishedAt": "2025-02-14",
+    "readingTime": 8,
+    "tags": ["Zero Trust", "architecture", "IAM", "micro-segmentation"],
+    "category": "strategy"
+  },
+  {
+    "id": "2",
+    "slug": "ransomware-defence-playbook-enterprise",
+    "title": "The Enterprise Ransomware Defence Playbook",
+    "excerpt": "Ransomware attacks cost enterprises an average of €4.5 million per incident in 2024. This playbook covers the preventative controls, detection logic, and response procedures that actually work.",
+    "content": "Ransomware operators have matured from spray-and-pray campaigns into targeted, business-impact-optimised operations. Understanding the adversary lifecycle is prerequisite to defending against it.\n\nPhase 1 – Initial Access. Phishing and exposed RDP remain the dominant entry vectors. Implement anti-phishing email controls with URL sandboxing, disable internet-facing RDP, and enforce MFA on every remote access path.\n\nPhase 2 – Persistence and Privilege Escalation. Attackers dwell for an average of 21 days before deploying ransomware. Behavioural EDR and UEBA detect the credential abuse and lateral movement that characterises this phase. Enable detailed Active Directory audit logging — event IDs 4768, 4769, and 4625 are goldmines.\n\nPhase 3 – Data Exfiltration. Modern ransomware groups exfiltrate before encrypting to enable double extortion. DLP controls on outbound channels and DarkWeb monitoring can detect early exfiltration signals.\n\nPhase 4 – Encryption. If ransomware executes, your recovery posture becomes critical. Immutable, air-gapped backups tested monthly are non-negotiable. A tested incident response retainer means the clock starts immediately — not after procurement.\n\nMeasure your resilience with a ransomware-specific tabletop exercise at least annually.",
+    "author": "Sophie Marchetti",
+    "authorRole": "Threat Intelligence Lead",
+    "publishedAt": "2025-01-28",
+    "readingTime": 10,
+    "tags": ["ransomware", "incident response", "EDR", "backup"],
+    "category": "threat-intelligence"
+  },
+  {
+    "id": "3",
+    "slug": "dora-compliance-technical-requirements",
+    "title": "DORA Compliance: What the Technical Requirements Actually Mean",
+    "excerpt": "The EU Digital Operational Resilience Act entered application in January 2025. Financial entities face concrete obligations around ICT risk, testing, and third-party management.",
+    "content": "DORA introduces five pillars of digital operational resilience that financial entities — banks, insurers, investment firms — must comply with by January 2025.\n\nICT Risk Management. Entities must maintain a comprehensive ICT risk framework with dedicated risk management functions, annual risk assessments, and a protection strategy covering detection, response, and recovery. Crucially, the framework must be board-approved and reviewed annually.\n\nICT Incident Reporting. Major ICT incidents must be reported to competent authorities within 4 hours of classification, with an intermediate report within 72 hours and a final report within one month. Incident classification criteria are specific — revenue impact, client count, and duration all factor in.\n\nDigital Operational Resilience Testing. All entities must run basic testing (vulnerability assessments, scenario-based tests) annually. Significant entities must conduct Threat-Led Penetration Testing (TLPT) every 3 years against production systems — TIBER-EU methodology is the benchmark.\n\nThird-Party Risk. DORA imposes strict requirements on ICT third-party contracts, including mandatory exit strategies, concentration risk assessments, and enhanced oversight for critical providers designated by ESAs.\n\nInformation Sharing. Entities are encouraged — and in some cases required — to participate in threat intelligence sharing arrangements. Establish your TLP-compliant sharing process now.",
+    "author": "Adrien Fontaine",
+    "authorRole": "GRC Director",
+    "publishedAt": "2025-01-10",
+    "readingTime": 12,
+    "tags": ["DORA", "compliance", "financial", "TLPT"],
+    "category": "compliance"
+  },
+  {
+    "id": "4",
+    "slug": "cloud-security-posture-management-guide",
+    "title": "Cloud Security Posture Management: Beyond the Checkbox",
+    "excerpt": "Misconfiguration is the leading cause of cloud data breaches. CSPM tools generate findings — but how you operationalise them determines whether they prevent breaches or just produce reports.",
+    "content": "Cloud misconfiguration breaches share a common thread: the misconfiguration was detectable, often flagged by a tool, and not remediated before exploitation. The problem is not visibility — it is operationalisation.\n\nContext-Aware Prioritisation. Raw CSPM findings can number in the thousands. Effective teams prioritise by combining exploitability (is there a known exploit?), exposure (is the resource public-facing?), and blast radius (what data does it touch?). Graph-based CSPM tools like Wiz excel here by showing attack paths rather than isolated findings.\n\nPolicy-as-Code. Prevent misconfigurations from reaching production by shifting security left. Define guardrails as code in Terraform Sentinel policies or AWS SCPs. Block non-compliant infrastructure at the IaC plan stage, not after deployment.\n\nContinuous Remediation Tracking. Integrate CSPM findings with your ticketing system and assign ownership. Track mean time to remediate by severity and team. Build dashboards that make progress visible to engineering leads.\n\nInventory Completeness. CSPM is only as good as its asset coverage. Implement cloud account inventory governance — any new cloud account should automatically onboard to your CSPM within 24 hours.\n\nDrift Detection. Even correctly configured resources drift. Schedule weekly configuration snapshots and alert on any change to internet-facing security groups, IAM policies, or encryption settings.",
+    "author": "Elena Petrova",
+    "authorRole": "Cloud Security Engineer",
+    "publishedAt": "2024-12-18",
+    "readingTime": 9,
+    "tags": ["CSPM", "cloud security", "misconfiguration", "IaC"],
+    "category": "cloud"
+  },
+  {
+    "id": "5",
+    "slug": "active-directory-hardening-checklist",
+    "title": "Active Directory Hardening: The 15-Point Enterprise Checklist",
+    "excerpt": "Active Directory is present in 90% of enterprise environments and is the primary target in virtually every lateral movement scenario. Here is the hardening checklist your red team wishes you had.",
+    "content": "Active Directory attacks follow predictable patterns. Privilege escalation paths are well-documented in the BloodHound attack graphs your red team will use against you. Harden before they do.\n\n1. Tiered Administration Model. Implement the Microsoft Enterprise Access Model. Tier 0 (domain controllers, PKI) must never be administered from endpoints used for email or browsing.\n\n2. Protected Users Group. Add all privileged accounts to the Protected Users group. This prevents NTLM authentication, Kerberos delegation, and RC4 encryption for those principals.\n\n3. Privileged Access Workstations. Tier 0 and Tier 1 administration must occur from hardened, dedicated PAWs that have no internet access and do not receive email.\n\n4. Credential Guard. Enable Windows Defender Credential Guard on all Windows 10/11 and Server 2016+ systems to prevent LSASS memory credential extraction.\n\n5. LAPS. Deploy Microsoft LAPS to randomise local administrator passwords on every domain-joined machine, eliminating pass-the-hash lateral movement.\n\n6. Constrained Delegation. Audit all accounts with unconstrained delegation using BloodHound. Eliminate or convert to resource-based constrained delegation.\n\n7. AdminSDHolder. Review AdminSDHolder-protected group memberships quarterly. Stale entries create persistent privilege escalation paths.\n\n8. KRBTGT Rotation. Rotate the KRBTGT account password twice per year. This invalidates any Golden Tickets issued by a compromised domain controller.\n\n9. Audit Policy. Enable advanced audit policy for logon events, account management, DS access, and privilege use. Forward to your SIEM within 60 seconds.\n\n10. DCSync Monitoring. Alert on any non-DC account performing directory replication via the MS-DRSR protocol. This is the DCSync attack precursor.\n\n11. Kerberoastable Accounts. Enumerate service accounts with SPNs and weak passwords. Use Group Managed Service Accounts (gMSA) to eliminate the Kerberoast attack surface.\n\n12. AS-REP Roastable Accounts. Identify accounts with pre-authentication disabled. These accounts expose their password hashes without any authentication.\n\n13. ACL Abuse Paths. Use BloodHound to identify WriteDACL, GenericAll, and GenericWrite ACEs on privileged objects. Remove non-default ACEs immediately.\n\n14. Domain Controller Hardening. Restrict DC network access to management networks only. Block SMB, RPC, and WinRM from user VLANs to your DCs.\n\n15. Incident Response Runbooks. Document your DC recovery procedure and test it annually. A compromised DC scenario is your highest-impact IR exercise.",
+    "author": "Marcus Elliot",
+    "authorRole": "Principal Security Architect",
+    "publishedAt": "2024-11-22",
+    "readingTime": 14,
+    "tags": ["Active Directory", "hardening", "PAM", "lateral movement"],
+    "category": "hardening"
+  },
+  {
+    "id": "6",
+    "slug": "soc-maturity-model-building-detection",
+    "title": "SOC Maturity Model: Building Detection That Scales",
+    "excerpt": "Most SOC teams drown in alerts rather than hunting threats. This guide walks through the maturity levels from reactive alert processing to proactive, intelligence-driven detection engineering.",
+    "content": "A mature SOC is not defined by headcount or tooling — it is defined by the quality and fidelity of its detections and the speed of its response. The maturity journey follows five levels.\n\nLevel 1 – Reactive Alert Triage. The entry-level SOC processes SIEM alerts as they arrive with predefined response steps. Alert volume is unmanaged, false positive rates are high (>60%), and analyst burnout is common. The goal at this stage is tuning — ruthlessly eliminate low-fidelity detections.\n\nLevel 2 – Structured Investigation. Analysts begin correlating alerts into incidents using a defined investigation framework. Runbooks exist for the top 20 alert types. MTTR improves from days to hours. Introduce threat intelligence enrichment at this stage.\n\nLevel 3 – Proactive Threat Hunting. Dedicated hunting analysts use hypothesis-based techniques to search for threats that evaded automated detection. Hunting missions are driven by threat intelligence and ATT&CK framework mappings. Findings feed back into new detection rules.\n\nLevel 4 – Detection Engineering. The SOC operates a formal detection-as-code pipeline. Detections are written in a structured language (Sigma, YARA), version-controlled, tested against historical data, and deployed through CI/CD. Mean time to detect a new TTP measured in hours, not weeks.\n\nLevel 5 – Intelligence-Led Operations. The SOC integrates with external threat intelligence communities, conducts adversary emulation exercises, and measures performance against specific threat actor TTPs. Purple team exercises continuously improve coverage.\n\nMeasure your maturity quarterly. The MITRE ATT&CK Evaluations and the SOC-CMM provide structured assessment frameworks to benchmark progress objectively.",
+    "author": "Sophie Marchetti",
+    "authorRole": "Threat Intelligence Lead",
+    "publishedAt": "2024-10-30",
+    "readingTime": 11,
+    "tags": ["SOC", "detection engineering", "ATT&CK", "threat hunting"],
+    "category": "operations"
+  }
+]
