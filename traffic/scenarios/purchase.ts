@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
 
 const FAKE_CARDS = [
   { number: "4242 4242 4242 4242", expiry: "12/28", cvc: "123" },
@@ -52,13 +52,13 @@ export async function runPurchase(
   // Add to cart
   const atcBtn = page
     .locator("button")
-    .filter({ hasText: /add to cart/i })
+    .filter({ hasText: /(add to cart|ajouter au panier)/i })
     .first();
   const btnVisible = await atcBtn.isVisible().catch(() => false);
 
   if (btnVisible) {
     log(label, "clicking add to cart");
-    await atcBtn.click();
+    await safeClick(page, atcBtn);
     await randomDelay(600, 1500);
   } else {
     log(label, "add-to-cart not found — skipping purchase");
@@ -77,7 +77,7 @@ export async function runPurchase(
     .first();
   const checkoutVisible = await checkoutLink.isVisible().catch(() => false);
   if (checkoutVisible) {
-    await checkoutLink.click();
+    await safeClick(page, checkoutLink);
     await page.waitForURL("**/checkout**", { timeout: 8000 });
   } else {
     await page.goto(`${site.baseUrl}/checkout`, { waitUntil: "domcontentloaded" });
@@ -96,7 +96,7 @@ export async function runPurchase(
   async function fill(selector: string, value: string) {
     const el = page.locator(selector).first();
     if (await el.isVisible().catch(() => false)) {
-      await el.click();
+      await safeClick(page, el);
       await randomDelay(100, 300);
       await el.fill(value);
       await randomDelay(200, 600);
@@ -124,7 +124,7 @@ export async function runPurchase(
   const submitVisible = await submitBtn.isVisible().catch(() => false);
 
   if (submitVisible) {
-    await submitBtn.click();
+    await safeClick(page, submitBtn);
     try {
       await page.waitForURL("**/confirmation**", { timeout: 10000 });
       log(label, "reached confirmation page ✓");

@@ -21,6 +21,10 @@ import { runBrowse } from "./scenarios/browse";
 import { runAddToCart } from "./scenarios/add_to_cart";
 import { runBounce } from "./scenarios/bounce";
 import { runPurchase } from "./scenarios/purchase";
+import { runHesitant } from "./scenarios/hesitant";
+import { runComparison } from "./scenarios/comparison";
+import { runCheckoutAbandon } from "./scenarios/checkout_abandon";
+import { runMultiCategory } from "./scenarios/multi_category";
 import { randomItem, pickScenario, log } from "./utils";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +60,7 @@ function parseArgs(): {
 interface SessionPlan {
   id: number;
   site: SiteConfig;
-  scenario: "purchase" | "add_to_cart" | "browse" | "bounce";
+  scenario: string;
   utmParams: Record<string, string>;
 }
 
@@ -147,6 +151,18 @@ async function runSession(plan: SessionPlan, dry: boolean): Promise<void> {
       case "bounce":
         await runBounce(page, plan.site, plan.utmParams, dry);
         break;
+      case "hesitant":
+        await runHesitant(page, plan.site, plan.utmParams, dry);
+        break;
+      case "comparison":
+        await runComparison(page, plan.site, plan.utmParams, dry);
+        break;
+      case "checkout_abandon":
+        await runCheckoutAbandon(page, plan.site, plan.utmParams, dry);
+        break;
+      case "multi_category":
+        await runMultiCategory(page, plan.site, plan.utmParams, dry);
+        break;
     }
 
     log(label, `DONE  site=${plan.site.name}  scenario=${plan.scenario}`);
@@ -222,7 +238,7 @@ async function main(): Promise<void> {
   console.log(`   sessions    : ${config.totalSessions}`);
   console.log(`   concurrency : ${config.concurrency}`);
   console.log(
-    `   distribution: purchase=${config.distribution.purchase * 100}% add_to_cart=${config.distribution.add_to_cart * 100}% browse=${config.distribution.browse * 100}% bounce=${config.distribution.bounce * 100}%`
+    `   distribution: purchase=${Math.round(config.distribution.purchase * 100)}% add_to_cart=${Math.round(config.distribution.add_to_cart * 100)}% browse=${Math.round(config.distribution.browse * 100)}% bounce=${Math.round(config.distribution.bounce * 100)}% hesitant=${Math.round(config.distribution.hesitant * 100)}% comparison=${Math.round(config.distribution.comparison * 100)}% checkout_abandon=${Math.round(config.distribution.checkout_abandon * 100)}% multi_category=${Math.round(config.distribution.multi_category * 100)}%`
   );
   console.log(`   dry-run     : ${dryRun}`);
   console.log(

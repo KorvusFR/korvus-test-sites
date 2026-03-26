@@ -71,6 +71,10 @@ export interface RunnerConfig {
     add_to_cart: number;
     browse: number;
     bounce: number;
+    hesitant: number;
+    comparison: number;
+    checkout_abandon: number;
+    multi_category: number;
   };
   /** UTM campaigns to rotate through */
   utmCampaigns: UtmSet[];
@@ -89,10 +93,14 @@ export const defaultRunnerConfig: RunnerConfig = {
   actionDelayMin: 1000,
   actionDelayMax: 4000,
   distribution: {
-    purchase: 0.2,
-    add_to_cart: 0.3,
-    browse: 0.3,
-    bounce: 0.2,
+    purchase: 0.15,
+    add_to_cart: 0.20,
+    browse: 0.20,
+    bounce: 0.15,
+    hesitant: 0.10,
+    comparison: 0.10,
+    checkout_abandon: 0.05,
+    multi_category: 0.05,
   },
   utmCampaigns: [
     {

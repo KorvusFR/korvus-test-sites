@@ -35,12 +35,7 @@ export function log(label: string, message: string): void {
   console.log(`[${ts}] ${label} ${message}`);
 }
 
-export function pickScenario(distribution: {
-  purchase: number;
-  add_to_cart: number;
-  browse: number;
-  bounce: number;
-}): "purchase" | "add_to_cart" | "browse" | "bounce" {
+export function pickScenario(distribution: Record<string, number>): string {
   const r = Math.random();
   let cum = 0;
   const entries = Object.entries(distribution) as Array<
@@ -50,5 +45,22 @@ export function pickScenario(distribution: {
     cum += weight;
     if (r < cum) return key;
   }
-  return "browse";
+  return entries[0][0]; // default fallback
+}
+
+export async function safeClick(
+  page: Page,
+  selector: any, // string or Locator
+  timeout = 5000
+): Promise<boolean> {
+  try {
+    const loc = typeof selector === "string" ? page.locator(selector).first() : selector.first();
+    await loc.waitFor({ state: "visible", timeout });
+    await loc.click({ timeout });
+    return true;
+  } catch (e) {
+    let locatorName = typeof selector === "string" ? selector : "Locator";
+    log("safeClick", `warning: element not found or not clickable — ${locatorName}`);
+    return false;
+  }
 }

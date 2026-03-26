@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
 
 /**
  * Add-to-cart scenario: browses a product, adds it to cart, then abandons.
@@ -31,13 +31,13 @@ export async function runAddToCart(
   // Click add to cart button
   const atcBtn = page
     .locator("button")
-    .filter({ hasText: /add to cart/i })
+    .filter({ hasText: /(add to cart|ajouter au panier)/i })
     .first();
   const btnVisible = await atcBtn.isVisible().catch(() => false);
 
   if (btnVisible) {
     log(label, "clicking add to cart");
-    await atcBtn.click();
+    await safeClick(page, atcBtn);
     await randomDelay(500, 1500);
   } else {
     log(label, "add-to-cart button not found, skipping");
