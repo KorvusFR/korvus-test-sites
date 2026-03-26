@@ -1,0 +1,19 @@
+{
+  "name": "korvus-traffic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthetic traffic generator for korvus-test-sites",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "run-traffic": "ts-node runner.ts"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.44.0",
+    "playwright": "^1.44.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@types/node": "^22.13.5",
+    "ts-node": "^10.9.2"
+  }
+}
