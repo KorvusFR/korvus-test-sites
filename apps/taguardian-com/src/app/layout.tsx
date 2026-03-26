@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Suspense } from "react";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
@@ -9,7 +8,6 @@ import { CookieBanner } from "@/components/CookieBanner";
 import { GTMPageView } from "@/components/GTMPageView";
 import { ThemeScript } from "@/components/ThemeScript";
 
-const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? "";
 
 export const metadata: Metadata = {
   title: {
@@ -31,34 +29,26 @@ export default function RootLayout({
         {/* Theme initialisation – prevents flash of wrong theme */}
         <ThemeScript />
 
-        {/* ── dataLayer initialised BEFORE GTM snippet ── */}
-        <Script id="gtm-datalayer-init" strategy="beforeInteractive">
-          {`window.dataLayer = window.dataLayer || [];`}
-        </Script>
-
-        {/* ── GTM snippet (disabled when no GTM_ID configured) ── */}
-        {GTM_ID && (
-          <Script id="gtm-script" strategy="afterInteractive">
-            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        {/* Google Tag Manager */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${GTM_ID}');`}
-          </Script>
-        )}
+})(window,document,'script','dataLayer','${process.env.NEXT_PUBLIC_GTM_ID}');`
+          }}
+        />
+        {/* End Google Tag Manager */}
       </head>
       <body className="min-h-screen flex flex-col">
-        {/* GTM noscript fallback */}
-        {GTM_ID && (
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-              height="0"
-              width="0"
-              style={{ display: "none", visibility: "hidden" }}
-            />
-          </noscript>
-        )}
+        {/* Google Tag Manager (noscript) */}
+        <noscript
+          dangerouslySetInnerHTML={{
+            __html: `<iframe src="https://www.googletagmanager.com/ns.html?id=${process.env.NEXT_PUBLIC_GTM_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe>`
+          }}
+        />
+        {/* End Google Tag Manager (noscript) */}
 
         <CartProvider>
           {/* Route-change pageview events */}

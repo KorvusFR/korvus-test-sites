@@ -10,7 +10,7 @@ export interface SiteConfig {
 export const sites: SiteConfig[] = [
   {
     name: "athletedatahub",
-    baseUrl: "http://localhost:3001",
+    baseUrl: "https://athletedatahub.com",
     cartKey: "adh_cart",
     hasGtm: false,
     productSlugs: [
@@ -22,7 +22,7 @@ export const sites: SiteConfig[] = [
   },
   {
     name: "taguardian-com",
-    baseUrl: "http://localhost:3002",
+    baseUrl: "https://taguardian.com",
     cartKey: "taguardian_cart",
     hasGtm: true,
     productSlugs: [
@@ -34,7 +34,7 @@ export const sites: SiteConfig[] = [
   },
   {
     name: "doomcheck",
-    baseUrl: "http://localhost:3003",
+    baseUrl: "https://doomcheck.me",
     cartKey: "doomcheck_cart",
     hasGtm: false,
     productSlugs: [
