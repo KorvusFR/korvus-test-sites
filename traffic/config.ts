@@ -30,8 +30,11 @@ export const sites: SiteConfig[] = [
     hasGtm: true,
     productSlugs: [
       "crowdstrike-falcon-pro-endpoint",
-      "palo-alto-ngfw-pa-220",
-      "sentinelone-singularity-complete",
+      "palo-alto-cortex-xdr-enterprise",
+      "sentinelone-singularity-enterprise",
+      "fortinet-fortigate-ngfw-license",
+      "palo-alto-pa-450-ngfw",
+      "fortinet-fortigate-200f-appliance",
     ],
     categoryPaths: ["/catalog/software", "/catalog/hardware", "/catalog/services"],
   },
