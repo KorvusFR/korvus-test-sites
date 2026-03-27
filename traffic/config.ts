@@ -3,8 +3,11 @@ export interface SiteConfig {
   baseUrl: string;
   cartKey: string;
   hasGtm: boolean;
+  isShopify?: boolean;
   productSlugs: string[];
   categoryPaths: string[];
+  /** Per-site scenario distribution — overrides the global distribution when set */
+  distribution?: Record<string, number>;
 }
 
 export const sites: SiteConfig[] = [
@@ -32,6 +35,7 @@ export const sites: SiteConfig[] = [
     ],
     categoryPaths: ["/catalog/software", "/catalog/hardware", "/catalog/services"],
   },
+
   {
     name: "doomcheck",
     baseUrl: "https://doomcheck.me",
@@ -51,8 +55,31 @@ export const sites: SiteConfig[] = [
     baseUrl: "https://taguardian.fr",
     cartKey: "taguardian_cart",
     hasGtm: true,
-    productSlugs: [],
-    categoryPaths: ["/collections/all"],
+    isShopify: true,
+    productSlugs: [
+      "robe-florale-midi",
+      "blouse-soie-fleurie",
+      "cardigan-oversize-cachemire",
+      "jean-slim-5-poches",
+      "manteau-laine-croise",
+      "sac-cabas-cuir",
+      "sneakers-cuir-blanc",
+      "blazer-structure-femme",
+    ],
+    categoryPaths: [
+      "/collections/vetements-femme",
+      "/collections/vetements-homme",
+      "/collections/chaussures",
+      "/collections/accessoires",
+      "/collections/maison-deco",
+    ],
+    distribution: {
+      "shopify-browse": 0.25,
+      "shopify-add-to-cart": 0.25,
+      "shopify-purchase": 0.20,
+      "shopify-bounce": 0.15,
+      "shopify-comparison": 0.15,
+    },
   },
 ];
 

@@ -64,3 +64,45 @@ export async function safeClick(
     return false;
   }
 }
+
+export async function handleShopifyPassword(page: Page, password: string): Promise<void> {
+  try {
+    const pwdInput = page.locator('input[type="password"]').first();
+    const isVisible = await pwdInput
+      .waitFor({ state: "visible", timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+    if (isVisible) {
+      await pwdInput.fill(password);
+      await safeClick(page, page.locator('button[type="submit"]').first());
+      await page.waitForLoadState("domcontentloaded").catch(() => {});
+      log("[shopify-auth]", "password entered");
+    } else {
+      log("[shopify-auth]", "no password required");
+    }
+  } catch {
+    log("[shopify-auth]", "no password required");
+  }
+}
+
+export async function handleCookieBanner(page: Page): Promise<void> {
+  try {
+    const banner = page.getByRole("dialog", { name: "Cookie consent" }).first();
+    const isVisible = await banner.waitFor({ state: "visible", timeout: 3000 }).then(() => true).catch(() => false);
+    
+    if (isVisible) {
+      if (Math.random() < 0.7) {
+        const acceptBtn = banner.getByRole("button", { name: "Accept all" }).first();
+        await safeClick(page, acceptBtn, 2000);
+        log("[cookies]", "accepted");
+      } else {
+        const declineBtn = banner.getByRole("button", { name: "Decline" }).first();
+        await safeClick(page, declineBtn, 2000);
+        log("[cookies]", "declined");
+      }
+      await randomDelay(300, 600);
+    }
+  } catch (e) {
+    // continue silently
+  }
+}

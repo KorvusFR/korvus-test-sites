@@ -25,6 +25,11 @@ import { runHesitant } from "./scenarios/hesitant";
 import { runComparison } from "./scenarios/comparison";
 import { runCheckoutAbandon } from "./scenarios/checkout_abandon";
 import { runMultiCategory } from "./scenarios/multi_category";
+import { runShopifyBrowse } from "./scenarios/shopify/shopify-browse";
+import { runShopifyAddToCart } from "./scenarios/shopify/shopify-add-to-cart";
+import { runShopifyPurchase } from "./scenarios/shopify/shopify-purchase";
+import { runShopifyBounce } from "./scenarios/shopify/shopify-bounce";
+import { runShopifyComparison } from "./scenarios/shopify/shopify-comparison";
 import { randomItem, pickScenario, log } from "./utils";
 
 // ---------------------------------------------------------------------------
@@ -77,13 +82,14 @@ function buildUtmParams(utm: UtmSet): Record<string, string> {
 function planSessions(
   targetSites: SiteConfig[],
   total: number,
-  distribution: typeof defaultRunnerConfig.distribution,
+  distribution: Record<string, number>,
   utmCampaigns: UtmSet[]
 ): SessionPlan[] {
   const plans: SessionPlan[] = [];
   for (let i = 0; i < total; i++) {
     const site = randomItem(targetSites);
-    const scenario = pickScenario(distribution);
+    const dist = site.distribution ?? distribution;
+    const scenario = pickScenario(dist);
     const utm = randomItem(utmCampaigns);
     plans.push({
       id: i + 1,
@@ -163,6 +169,21 @@ async function runSession(plan: SessionPlan, dry: boolean): Promise<void> {
       case "multi_category":
         await runMultiCategory(page, plan.site, plan.utmParams, dry);
         break;
+      case "shopify-browse":
+        await runShopifyBrowse(page, plan.site, plan.utmParams, dry);
+        break;
+      case "shopify-add-to-cart":
+        await runShopifyAddToCart(page, plan.site, plan.utmParams, dry);
+        break;
+      case "shopify-purchase":
+        await runShopifyPurchase(page, plan.site, plan.utmParams, dry);
+        break;
+      case "shopify-bounce":
+        await runShopifyBounce(page, plan.site, plan.utmParams, dry);
+        break;
+      case "shopify-comparison":
+        await runShopifyComparison(page, plan.site, plan.utmParams, dry);
+        break;
     }
 
     log(label, `DONE  site=${plan.site.name}  scenario=${plan.scenario}`);
@@ -237,9 +258,14 @@ async function main(): Promise<void> {
   console.log(`   sites       : ${targetSites.map((s) => s.name).join(", ")}`);
   console.log(`   sessions    : ${config.totalSessions}`);
   console.log(`   concurrency : ${config.concurrency}`);
-  console.log(
-    `   distribution: purchase=${Math.round(config.distribution.purchase * 100)}% add_to_cart=${Math.round(config.distribution.add_to_cart * 100)}% browse=${Math.round(config.distribution.browse * 100)}% bounce=${Math.round(config.distribution.bounce * 100)}% hesitant=${Math.round(config.distribution.hesitant * 100)}% comparison=${Math.round(config.distribution.comparison * 100)}% checkout_abandon=${Math.round(config.distribution.checkout_abandon * 100)}% multi_category=${Math.round(config.distribution.multi_category * 100)}%`
-  );
+  const scenarioCounts: Record<string, number> = {};
+  for (const p of plans) {
+    scenarioCounts[p.scenario] = (scenarioCounts[p.scenario] ?? 0) + 1;
+  }
+  const distSummary = Object.entries(scenarioCounts)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("  ");
+  console.log(`   distribution: ${distSummary}`);
   console.log(`   dry-run     : ${dryRun}`);
   console.log(
     `─────────────────────────────────────────────────────────────────\n`
