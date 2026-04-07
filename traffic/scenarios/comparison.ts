@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, handleCookieBanner } from "../utils";
 
 /**
  * Comparison scenario: visits 4-5 product pages, long scrolls, doesn't add to cart.
@@ -16,6 +16,7 @@ export async function runComparison(
   if (site.productSlugs.length === 0) return;
   if (dry) return;
 
+  let bannerHandled = false;
   const compareCount = 4 + Math.floor(Math.random() * 2); // 4-5
   for (let i = 0; i < compareCount; i++) {
     const slug = randomItem(site.productSlugs);
@@ -23,6 +24,10 @@ export async function runComparison(
     
     log(label, `comparing → ${productUrl}`);
     await page.goto(productUrl, { waitUntil: "domcontentloaded" });
+    if (!bannerHandled && site.name === "taguardian-com") {
+      await handleCookieBanner(page);
+      bannerHandled = true;
+    }
     
     // long scroll
     await scrollPage(page);

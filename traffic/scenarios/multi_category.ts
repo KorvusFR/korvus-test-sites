@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick, handleCookieBanner } from "../utils";
 
 /**
  * Multi category scenario: visits 3 categories, adds 1-2 products per category, then abandons on cart.
@@ -18,10 +18,15 @@ export async function runMultiCategory(
 
   const cats = [...site.categoryPaths].sort(() => 0.5 - Math.random()).slice(0, 3);
   
+  let bannerHandled = false;
   for (const cat of cats) {
     const catUrl = buildUrl(`${site.baseUrl}${cat}`, utmParams);
     log(label, `category → ${catUrl}`);
     await page.goto(catUrl, { waitUntil: "domcontentloaded" });
+    if (!bannerHandled && site.name === "taguardian-com") {
+      await handleCookieBanner(page);
+      bannerHandled = true;
+    }
     await scrollPage(page);
     await randomDelay(1500, 3000);
 

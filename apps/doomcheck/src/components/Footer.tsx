@@ -61,26 +61,27 @@ export function Footer() {
               Chaos Lab
             </h3>
             <ul className="space-y-2 text-sm text-doom-400">
-              <li>
-                <span className="font-mono text-xs bg-doom-800 px-1.5 py-0.5 rounded text-doom-green">
-                  slow_snippet
-                </span>
-              </li>
-              <li>
-                <span className="font-mono text-xs bg-doom-800 px-1.5 py-0.5 rounded text-doom-green">
-                  js_error
-                </span>
-              </li>
-              <li>
-                <span className="font-mono text-xs bg-doom-800 px-1.5 py-0.5 rounded text-doom-green">
-                  broken_images
-                </span>
-              </li>
-              <li>
-                <span className="font-mono text-xs bg-doom-800 px-1.5 py-0.5 rounded text-doom-green">
-                  checkout_crash
-                </span>
-              </li>
+              {[
+                "slow_snippet",
+                "js_error",
+                "broken_images",
+                "checkout_crash",
+                "request_error_500",
+                "request_timeout",
+                "ux_error",
+                "broken_script",
+                "broken_css",
+                "layout_shift",
+                "broken_img",
+                "atc_silent_fail",
+                "hidden_alert",
+              ].map((flag) => (
+                <li key={flag}>
+                  <span className="font-mono text-xs bg-doom-800 px-1.5 py-0.5 rounded text-doom-green">
+                    {flag}
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

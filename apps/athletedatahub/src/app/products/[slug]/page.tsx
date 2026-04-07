@@ -5,8 +5,9 @@ import { getProductBySlug, getAllProducts, getRelatedProducts } from "@/lib/prod
 import { ProductCard } from "@/components/ProductCard";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Badge } from "@/components/ui/Badge";
-import { t, getLocale, formatPrice } from "@/lib/i18n";
+import { t, getLocale, getCurrency, formatPrice } from "@/lib/i18n";
 import { ProductOptions } from "@/components/ProductOptions";
+import { ViewItemTracker } from "@/components/ViewItemTracker";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -43,9 +44,40 @@ export default async function ProductPage({ params }: PageProps) {
   const price = formatPrice(product.price, product.priceFr);
   const catLabel = categoryLabels[product.category]?.[locale] ?? product.category;
   const related = getRelatedProducts(product, 4);
+  const currency = getCurrency();
+  const rawPrice = locale === "fr" ? product.priceFr : product.price;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name,
+    sku: product.id,
+    description,
+    image: product.image,
+    offers: {
+      "@type": "Offer",
+      price: rawPrice,
+      priceCurrency: currency,
+      availability: product.inStock
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+    },
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ViewItemTracker
+        id={product.id}
+        name={name}
+        category={product.category}
+        price={rawPrice}
+        currency={currency}
+      />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <Breadcrumbs
         items={[
           { label: t("home"), href: "/" },
@@ -144,6 +176,7 @@ export default async function ProductPage({ params }: PageProps) {
         </section>
       )}
     </div>
+    </>
   );
 }
 

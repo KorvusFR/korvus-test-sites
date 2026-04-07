@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick, handleCookieBanner } from "../utils";
 
 /**
  * Hesitant scenario: Adds to cart, goes to cart, removes the item, and leaves.
@@ -20,6 +20,9 @@ export async function runHesitant(
   if (dry) return;
 
   await page.goto(productUrl, { waitUntil: "domcontentloaded" });
+  if (site.name === "taguardian-com") {
+    await handleCookieBanner(page);
+  }
   await scrollPage(page);
   await randomDelay(1500, 3000);
 

@@ -12,6 +12,7 @@ import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductImage } from "@/components/ProductImage";
 import { Badge } from "@/components/ui/Badge";
 import { formatPrice } from "@/lib/utils";
+import { ViewItemTracker } from "@/components/ViewItemTracker";
 
 export function generateStaticParams() {
   return getAllProducts().map((p) => ({ slug: p.slug }));
@@ -45,8 +46,50 @@ export default async function ProductPage({
   const meta = categoryMeta[product.category];
   const stars = Math.round(product.rating);
 
+  // Intentionally broken JSON-LD for glitchphone-9: missing price and availability
+  const isBrokenLd = product.slug === "glitchphone-9";
+  const jsonLd = isBrokenLd
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: product.name,
+        sku: product.id,
+        description: product.description,
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "EUR",
+        },
+      }
+    : {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: product.name,
+        sku: product.id,
+        description: product.description,
+        image: `https://doomcheck.com/products/${product.slug}`,
+        offers: {
+          "@type": "Offer",
+          price: product.price,
+          priceCurrency: "EUR",
+          availability: product.inStock
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+        },
+      };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ViewItemTracker
+        id={product.id}
+        name={product.name}
+        category={product.category}
+        price={product.price}
+      />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <nav className="text-xs text-doom-400 mb-6">
         <Link href="/catalog" className="hover:text-doom-red transition-colors">
           Catalog
@@ -162,5 +205,6 @@ export default async function ProductPage({
         </section>
       )}
     </div>
+    </>
   );
 }

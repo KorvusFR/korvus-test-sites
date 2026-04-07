@@ -40,6 +40,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           }}
         />
         {/* End Google Tag Manager */}
+        {/* Fake Meta Pixel (fbq) — simulates pixel presence for testing */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.fbq=function(){window.__korvusTagLog=window.__korvusTagLog||[];window.__korvusTagLog.push({tag:"meta_pixel",args:[].slice.call(arguments),ts:Date.now()});};`,
+          }}
+        />
+        {/* Fake GA4 (gtag) — simulates pixel presence for testing */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.gtag=function(){window.__korvusTagLog=window.__korvusTagLog||[];window.__korvusTagLog.push({tag:"ga4",args:[].slice.call(arguments),ts:Date.now()});};`,
+          }}
+        />
+        {/* INJECT_SCRIPTS */}
+        <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001012",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"/api/ingest",platform:"custom"};` }} />
+        <script src="/api/snippet/korvus.min.js" defer />
       </head>
       <body className="min-h-screen flex flex-col">
         {/* Google Tag Manager (noscript) */}

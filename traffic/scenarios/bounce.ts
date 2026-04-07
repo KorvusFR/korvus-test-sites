@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, buildUrl, scrollPage, log } from "../utils";
+import { randomDelay, buildUrl, scrollPage, log, handleCookieBanner } from "../utils";
 
 /**
  * Bounce scenario: arrives on home page, scrolls slightly, leaves immediately.
@@ -18,6 +18,9 @@ export async function runBounce(
   if (dry) return;
 
   await page.goto(homeUrl, { waitUntil: "domcontentloaded" });
+  if (site.name === "taguardian-com") {
+    await handleCookieBanner(page);
+  }
 
   // Minimal scroll — simulates user who immediately loses interest
   await page.evaluate(() => {

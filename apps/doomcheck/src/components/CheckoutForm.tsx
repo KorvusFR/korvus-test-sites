@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { Input } from "@/components/ui/Input";
 import { formatPrice } from "@/lib/utils";
+import { gtmPurchase, pushDataLayer } from "@/lib/gtm";
 
 const CHAOS_FLAGS = (process.env.NEXT_PUBLIC_CHAOS_FLAGS ?? "")
   .split(",")
@@ -47,6 +48,32 @@ export function CheckoutForm() {
 
     setSubmitting(true);
     const orderNumber = generateOrderNumber();
+
+    const orderItems = items.map((i) => ({
+      id: i.productId,
+      name: i.name,
+      category: "unknown",
+      price: i.price,
+      quantity: i.quantity,
+    }));
+
+    if (CHAOS_FLAGS.includes("broken_purchase")) {
+      // Intentionally broken: push purchase WITHOUT value and WITHOUT transaction_id
+      pushDataLayer("purchase", {
+        ecommerce: {
+          currency: "EUR",
+          items: orderItems.map((i) => ({
+            item_id: i.id,
+            item_name: i.name,
+            item_category: i.category,
+            price: i.price,
+            quantity: i.quantity,
+          })),
+        },
+      });
+    } else {
+      gtmPurchase({ orderNumber, items: orderItems, total });
+    }
 
     setTimeout(() => {
       clearCart();
@@ -210,6 +237,11 @@ export function CheckoutForm() {
           <div className="border-t border-doom-700 mt-4 pt-4 flex justify-between font-bold text-slate-200">
             <span>Total</span>
             <span className="text-doom-red">{formatPrice(total)}</span>
+          </div>
+          <div className="discount-tag mt-3 pt-3 border-t border-doom-700 inline-flex items-center gap-1 text-sm text-doom-green">
+            <span className="code font-mono font-bold">DOOM20</span>
+            {" -"}
+            <span className="amount font-semibold">20%</span>
           </div>
         </div>
 

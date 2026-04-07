@@ -44,8 +44,30 @@ export default async function ProductPage({ params }: PageProps) {
   const delivery = deliveryLabels[product.deliveryType];
   const DeliveryIcon = delivery.icon;
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    sku: product.id,
+    description: product.description,
+    image: `https://taguardian.com/products/${product.slug}`,
+    offers: {
+      "@type": "Offer",
+      price: product.price,
+      priceCurrency: "EUR",
+      availability: product.inStock
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+    },
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <Breadcrumbs
         items={[
           { label: "Home", href: "/" },
@@ -144,5 +166,6 @@ export default async function ProductPage({ params }: PageProps) {
         </section>
       )}
     </div>
+    </>
   );
 }

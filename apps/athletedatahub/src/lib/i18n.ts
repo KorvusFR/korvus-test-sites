@@ -106,6 +106,13 @@ export const labels = {
     privacy: "Privacy Policy",
     terms: "Terms of Service",
     allRightsReserved: "All rights reserved.",
+    // Search
+    search: "Search",
+    searchPlaceholder: "Search products…",
+    searchResults: "Search Results",
+    searchResultsFor: "Results for",
+    noResults: "No results",
+    noResultsMessage: "No products match your search.",
   },
   fr: {
     // Nav
@@ -196,6 +203,13 @@ export const labels = {
     privacy: "Politique de confidentialité",
     terms: "Conditions générales",
     allRightsReserved: "Tous droits réservés.",
+    // Search
+    search: "Rechercher",
+    searchPlaceholder: "Rechercher un produit…",
+    searchResults: "Résultats de recherche",
+    searchResultsFor: "Résultats pour",
+    noResults: "Aucun résultat",
+    noResultsMessage: "Aucun produit ne correspond à votre recherche.",
   },
 } as const;
 

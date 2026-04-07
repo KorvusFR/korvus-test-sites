@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, handleCookieBanner } from "../utils";
 
 /**
  * Browse scenario: visits catalog + 1–3 product pages, no cart action.
@@ -18,6 +18,9 @@ export async function runBrowse(
   if (dry) return;
 
   await page.goto(catalogUrl, { waitUntil: "domcontentloaded" });
+  if (site.name === "taguardian-com") {
+    await handleCookieBanner(page);
+  }
   await scrollPage(page);
   await randomDelay(800, 2000);
 

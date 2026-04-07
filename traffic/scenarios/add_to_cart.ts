@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick, handleCookieBanner } from "../utils";
 
 /**
  * Add-to-cart scenario: browses a product, adds it to cart, then abandons.
@@ -25,6 +25,9 @@ export async function runAddToCart(
   if (dry) return;
 
   await page.goto(productUrl, { waitUntil: "domcontentloaded" });
+  if (site.name === "taguardian-com") {
+    await handleCookieBanner(page);
+  }
   await scrollPage(page);
   await randomDelay(1500, 3500);
 

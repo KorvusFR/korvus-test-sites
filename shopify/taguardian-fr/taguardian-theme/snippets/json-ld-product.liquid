@@ -1,0 +1,27 @@
+{%- liquid
+  assign current_variant = product.selected_or_first_available_variant
+  if current_variant.available
+    assign availability = "https://schema.org/InStock"
+  else
+    assign availability = "https://schema.org/OutOfStock"
+  endif
+-%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": {{ product.title | json }},
+  "description": {{ product.description | strip_html | truncate: 500 | json }},
+  "sku": {{ current_variant.sku | default: product.id | json }},
+  "image": {{ product.featured_image | image_url: width: 1200 | prepend: "https:" | json }},
+  "url": {{ request.origin | append: product.url | json }},
+  "offers": {
+    "@type": "Offer",
+    "price": {{ current_variant.price | times: 1.0 | divided_by: 100.0 }},
+    "priceCurrency": {{ shop.currency | json }},
+    "availability": {{ availability | json }},
+    "url": {{ request.origin | append: current_variant.url | default: product.url | json }}
+  }
+}
+</script>

@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Shield, Sun, Moon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShoppingCart, Menu, X, Shield, Sun, Moon, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
 
 export function Header() {
   const { itemCount } = useCart();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -57,6 +60,28 @@ export function Header() {
             ))}
           </nav>
 
+          {/* Search */}
+          <form
+            className="hidden md:flex items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchQuery.trim()) {
+                router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+              }
+            }}
+          >
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search solutions…"
+                className="w-48 pl-8 pr-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            </div>
+          </form>
+
           {/* Right actions */}
           <div className="flex items-center gap-2">
             {/* Dark mode toggle */}
@@ -99,6 +124,27 @@ export function Header() {
       {menuOpen && (
         <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <nav className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-1">
+            <form
+              className="mb-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (searchQuery.trim()) {
+                  router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                  setMenuOpen(false);
+                }
+              }}
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search solutions…"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              </div>
+            </form>
             {navLinks.map((link) => (
               <Link
                 key={link.href}

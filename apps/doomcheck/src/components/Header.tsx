@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Zap } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShoppingCart, Zap, Search } from "lucide-react";
+import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 
 export function Header() {
   const { itemCount } = useCart();
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <header className="sticky top-0 z-50 bg-doom-900/95 backdrop-blur-sm border-b border-doom-700">
@@ -36,18 +40,42 @@ export function Header() {
           </Link>
         </nav>
 
-        <Link
-          href="/cart"
-          className="relative flex items-center gap-2 text-slate-300 hover:text-doom-red transition-colors"
-        >
-          <ShoppingCart className="w-5 h-5" />
-          {itemCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-doom-red text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
-              {itemCount > 9 ? "9+" : itemCount}
-            </span>
-          )}
-          <span className="hidden sm:inline text-sm">Cart</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* Search */}
+          <form
+            className="hidden md:flex items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchQuery.trim()) {
+                router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+              }
+            }}
+          >
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search…"
+                className="w-40 pl-7 pr-3 py-1 text-sm border border-doom-700 rounded-md bg-doom-800 text-slate-200 placeholder-doom-500 focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red"
+              />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-doom-500" />
+            </div>
+          </form>
+
+          <Link
+            href="/cart"
+            className="relative flex items-center gap-2 text-slate-300 hover:text-doom-red transition-colors"
+          >
+            <ShoppingCart className="w-5 h-5" />
+            {itemCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-doom-red text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {itemCount > 9 ? "9+" : itemCount}
+              </span>
+            )}
+            <span className="hidden sm:inline text-sm">Cart</span>
+          </Link>
+        </div>
       </div>
     </header>
   );

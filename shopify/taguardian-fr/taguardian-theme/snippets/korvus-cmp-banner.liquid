@@ -1,0 +1,118 @@
+<style>
+  .korvus-cmp-banner {
+    position: fixed;
+    bottom: 1rem;
+    right: 1.5rem;
+    left: 1rem;
+    max-width: 420px;
+    margin-left: auto;
+    z-index: 9999;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    padding: 1.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  .korvus-cmp-banner.hidden { display: none; }
+  .korvus-cmp-banner__inner { display: flex; align-items: flex-start; gap: 0.75rem; }
+  .korvus-cmp-banner__icon { flex-shrink: 0; margin-top: 2px; color: #2563eb; }
+  .korvus-cmp-banner__content { flex: 1; }
+  .korvus-cmp-banner__title {
+    font-weight: 600; font-size: 0.875rem; color: #111827; margin: 0 0 0.25rem;
+  }
+  .korvus-cmp-banner__text {
+    font-size: 0.75rem; color: #6b7280; line-height: 1.5; margin: 0 0 1rem;
+  }
+  .korvus-cmp-banner__actions { display: flex; gap: 0.5rem; }
+  .korvus-cmp-btn {
+    font-size: 0.875rem; font-weight: 600; padding: 0.375rem 0.75rem;
+    border-radius: 0.5rem; cursor: pointer; transition: background 0.15s;
+    border: none; line-height: 1.25;
+  }
+  .korvus-cmp-btn--accept {
+    background: #2563eb; color: #fff;
+  }
+  .korvus-cmp-btn--accept:hover { background: #1d4ed8; }
+  .korvus-cmp-btn--decline {
+    background: transparent; color: #374151;
+    border: 1px solid #d1d5db;
+  }
+  .korvus-cmp-btn--decline:hover { background: #f9fafb; }
+  .korvus-cmp-banner__close {
+    flex-shrink: 0; background: none; border: none;
+    color: #9ca3af; cursor: pointer; padding: 0; line-height: 1;
+  }
+  .korvus-cmp-banner__close:hover { color: #4b5563; }
+</style>
+
+<div id="korvus-cmp-banner" class="korvus-cmp-banner hidden">
+  <div class="korvus-cmp-banner__inner">
+    <svg class="korvus-cmp-banner__icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></svg>
+    <div class="korvus-cmp-banner__content">
+      <p class="korvus-cmp-banner__title">Nous utilisons des cookies</p>
+      <p class="korvus-cmp-banner__text">
+        Nous utilisons des cookies analytiques et fonctionnels pour
+        am&eacute;liorer votre exp&eacute;rience. Vous pouvez accepter
+        tous les cookies ou refuser les non-essentiels.
+      </p>
+      <div class="korvus-cmp-banner__actions">
+        <button class="korvus-cmp-btn korvus-cmp-btn--accept" id="korvus-cmp-accept">Tout accepter</button>
+        <button class="korvus-cmp-btn korvus-cmp-btn--decline" id="korvus-cmp-decline">Refuser</button>
+      </div>
+    </div>
+    <button class="korvus-cmp-banner__close" id="korvus-cmp-close" aria-label="Fermer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function() {
+  var KEY = 'taguardian_fr_cookie_consent';
+  var banner = document.getElementById('korvus-cmp-banner');
+
+  function getStatus() {
+    try { return localStorage.getItem(KEY); } catch(e) { return null; }
+  }
+
+  function hideBanner() {
+    if (banner) banner.classList.add('hidden');
+  }
+
+  function accept() {
+    try { localStorage.setItem(KEY, 'accepted'); } catch(e) {}
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event: 'cookie_consent', consent_status: 'accepted' });
+    hideBanner();
+  }
+
+  function decline() {
+    try { localStorage.setItem(KEY, 'declined'); } catch(e) {}
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event: 'cookie_consent', consent_status: 'declined' });
+    hideBanner();
+  }
+
+  // Expose CMP API
+  window.__korvusCMP = {
+    accept: accept,
+    decline: decline,
+    getStatus: getStatus
+  };
+
+  // Show banner if no consent yet
+  if (!getStatus() && banner) {
+    banner.classList.remove('hidden');
+  }
+
+  // Attach handlers
+  var acceptBtn = document.getElementById('korvus-cmp-accept');
+  var declineBtn = document.getElementById('korvus-cmp-decline');
+  var closeBtn = document.getElementById('korvus-cmp-close');
+
+  if (acceptBtn) acceptBtn.addEventListener('click', accept);
+  if (declineBtn) declineBtn.addEventListener('click', decline);
+  if (closeBtn) closeBtn.addEventListener('click', decline);
+})();
+</script>

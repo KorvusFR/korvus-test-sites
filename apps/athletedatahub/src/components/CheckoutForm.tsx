@@ -8,7 +8,8 @@ import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { t, getLocale } from "@/lib/i18n";
+import { t, getLocale, getCurrency } from "@/lib/i18n";
+import { gtmPurchase } from "@/lib/gtm";
 
 interface FormData {
   firstName: string;
@@ -63,6 +64,19 @@ export function CheckoutForm() {
 
     // Simulate processing
     const orderNumber = `ADH-${Date.now().toString(36).toUpperCase()}`;
+    const currency = getCurrency();
+    gtmPurchase({
+      orderNumber,
+      items: items.map((i) => ({
+        id: i.productId,
+        name: locale === "fr" ? i.nameFr : i.name,
+        category: "unknown",
+        price: locale === "fr" ? i.priceFr : i.price,
+        quantity: i.quantity,
+      })),
+      total: grandTotal,
+      currency,
+    });
     setTimeout(() => {
       clearCart();
       router.push(`/checkout/confirmation?order=${orderNumber}`);

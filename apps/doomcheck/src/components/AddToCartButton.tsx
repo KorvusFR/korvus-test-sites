@@ -5,6 +5,8 @@ import { ShoppingCart, Check } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/Button";
 import type { Product } from "@/types";
+import { gtmAddToCart } from "@/lib/gtm";
+import { hasFlag } from "@/lib/chaos";
 
 interface Props {
   product: Product;
@@ -17,6 +19,13 @@ export function AddToCartButton({ product, selectedVariant, selectedColor }: Pro
   const [added, setAdded] = useState(false);
 
   function handleAdd() {
+    if (hasFlag("atc_silent_fail")) {
+      // Chaos: button appears to work but does nothing
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+      return;
+    }
+
     addItem({
       productId: product.id,
       slug: product.slug,
@@ -25,6 +34,14 @@ export function AddToCartButton({ product, selectedVariant, selectedColor }: Pro
       quantity: 1,
       selectedVariant,
       selectedColor,
+    });
+    gtmAddToCart({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      price: product.price,
+      quantity: 1,
+      variant: selectedVariant,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);

@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick, handleCookieBanner } from "../utils";
 
 const FAKE_CARDS = [
   { number: "4242 4242 4242 4242", expiry: "12/28", cvc: "123" },
@@ -46,6 +46,9 @@ export async function runPurchase(
   if (dry) return;
 
   await page.goto(productUrl, { waitUntil: "domcontentloaded" });
+  if (site.name === "taguardian-com") {
+    await handleCookieBanner(page);
+  }
   await scrollPage(page);
   await randomDelay(1500, 3000);
 

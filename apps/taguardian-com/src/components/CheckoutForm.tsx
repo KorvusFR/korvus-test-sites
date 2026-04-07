@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, CreditCard } from "lucide-react";
 import { useCart } from "@/context/CartContext";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { formatPrice } from "@/lib/utils";
-import { gtmBeginCheckout, gtmPurchase } from "@/lib/gtm";
+import { gtmBeginCheckout, gtmPurchase, pushDataLayer } from "@/lib/gtm";
 
 const ORDER_KEY = "taguardian_last_order";
 
@@ -37,6 +37,8 @@ const EMPTY: FormData = {
 
 export function CheckoutForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const chaosMode = searchParams.get("chaos");
   const { items, total, clearCart } = useCart();
   const [form, setForm] = useState<FormData>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
@@ -84,7 +86,23 @@ export function CheckoutForm() {
     } catch { /* ignore */ }
 
     // GTM purchase event
-    gtmPurchase({ orderNumber, items: orderItems, total, shipping: 0 });
+    if (chaosMode === "broken_purchase") {
+      // Intentionally malformed: missing value and transaction_id
+      pushDataLayer("purchase", {
+        ecommerce: {
+          currency: "EUR",
+          items: orderItems.map((i) => ({
+            item_id: i.id,
+            item_name: i.name,
+            item_category: i.category,
+            price: i.price,
+            quantity: i.quantity,
+          })),
+        },
+      });
+    } else {
+      gtmPurchase({ orderNumber, items: orderItems, total, shipping: 0 });
+    }
 
     setTimeout(() => {
       clearCart();

@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Dumbbell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShoppingCart, Menu, X, Dumbbell, Search } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { t } from "@/lib/i18n";
 
 export function Header() {
   const { itemCount } = useCart();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const navLinks = [
     { href: "/", label: t("home") },
@@ -65,6 +68,28 @@ export function Header() {
             </Link>
           </nav>
 
+          {/* Search */}
+          <form
+            className="hidden md:flex items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchQuery.trim()) {
+                router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+              }
+            }}
+          >
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t("searchPlaceholder")}
+                className="w-48 pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            </div>
+          </form>
+
           {/* Cart + Mobile menu */}
           <div className="flex items-center gap-3">
             <Link
@@ -103,6 +128,27 @@ export function Header() {
       {menuOpen && (
         <div className="md:hidden border-t border-gray-200 bg-white">
           <nav className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-1">
+            <form
+              className="mb-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (searchQuery.trim()) {
+                  router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                  setMenuOpen(false);
+                }
+              }}
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("searchPlaceholder")}
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </div>
+            </form>
             {navLinks.map((link) => (
               <Link
                 key={link.href}

@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { SiteConfig } from "../config";
-import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick } from "../utils";
+import { randomDelay, randomItem, buildUrl, scrollPage, log, safeClick, handleCookieBanner } from "../utils";
 
 /**
  * Checkout abandon scenario: adds product, goes to checkout, fills some fields and leaves.
@@ -23,6 +23,9 @@ export async function runCheckoutAbandon(
 
   // Visit Product
   await page.goto(productUrl, { waitUntil: "domcontentloaded" });
+  if (site.name === "taguardian-com") {
+    await handleCookieBanner(page);
+  }
   await scrollPage(page);
   await randomDelay(1000, 2500);
 

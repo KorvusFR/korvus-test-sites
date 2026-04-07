@@ -302,6 +302,15 @@
     <!-- End Google Tag Manager -->
 
     <!-- INJECT_SCRIPTS -->
+    <script>
+      window.__korvus = {
+        websiteId: "00000000-0000-4000-a000-000000001014",
+        apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
+        endpoint: "https://app.korvus.fr/api/ingest",
+        platform: "shopify"
+      };
+    </script>
+    <script src="https://app.korvus.fr/api/snippet/korvus.min.js" defer></script>
     {% comment %}Korvus snippet — inject here{% endcomment %}
   </head>
 
@@ -383,5 +392,7 @@
     {%- if settings.cart_type == 'drawer' -%}
       <script src="{{ 'cart-drawer.js' | asset_url }}" defer="defer"></script>
     {%- endif -%}
+
+    {% render 'korvus-cmp-banner' %}
   </body>
 </html>

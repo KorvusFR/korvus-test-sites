@@ -5,7 +5,8 @@ import { ShoppingCart, Check } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/Button";
 import type { Product } from "@/types";
-import { t, getLocale } from "@/lib/i18n";
+import { t, getLocale, getCurrency } from "@/lib/i18n";
+import { gtmAddToCart } from "@/lib/gtm";
 
 interface AddToCartButtonProps {
   product: Product;
@@ -44,6 +45,15 @@ export function AddToCartButton({
       quantity: 1,
       selectedVariant,
       selectedColor,
+    });
+    gtmAddToCart({
+      id: product.id,
+      name: locale === "fr" ? product.nameFr : product.name,
+      category: product.category,
+      price: locale === "fr" ? product.priceFr : product.price,
+      quantity: 1,
+      currency: getCurrency(),
+      variant: selectedVariant,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);

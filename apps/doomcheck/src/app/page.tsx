@@ -11,6 +11,14 @@ export default function HomePage() {
     <div>
       {/* Hero */}
       <section className="relative overflow-hidden bg-doom-900 border-b border-doom-700">
+        {/* Heavy hero image — LCP element for perf_drop testing */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/hero-chaos.jpg"
+          alt="doomcheck chaos hero"
+          fetchPriority="high"
+          className="absolute inset-0 w-full h-full object-cover opacity-30"
+        />
         <div className="absolute inset-0 bg-gradient-to-br from-doom-red/10 via-transparent to-doom-green/5 pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-28 relative">
           <div className="max-w-2xl">
