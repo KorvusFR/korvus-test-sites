@@ -1,0 +1,449 @@
+import { test, expect } from "@playwright/test"
+import type { Route } from "@playwright/test"
+import { IngestInterceptor } from "../helpers/ingest-interceptor"
+import { injectSnippet } from "../helpers/inject-snippet"
+
+// All tests run on doomcheck (port 3003) — the only site with chaos engine
+
+// ---------------------------------------------------------------------------
+// Test 4 — js_error
+// ---------------------------------------------------------------------------
+
+test.describe("Test 4 — js_error", () => {
+  test("captures js_error with message, source, lineno, colno, stack", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    // Inject an uncaught error via setTimeout (triggers window.onerror)
+    await page.evaluate(() => {
+      setTimeout(() => {
+        throw new Error("Test snippet error")
+      }, 10)
+    })
+    await page.waitForTimeout(300)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("js_error")
+    const evt = events.find((e) =>
+      (e.payload.message as string).includes("Test snippet error"),
+    )
+    expect(evt, "js_error event should be captured").toBeDefined()
+    expect(evt!.payload.message).toContain("Test snippet error")
+    expect(evt!.payload).toHaveProperty("source")
+    expect(evt!.payload).toHaveProperty("lineno")
+    expect(evt!.payload).toHaveProperty("colno")
+    expect(evt!.payload).toHaveProperty("stack")
+  })
+
+  test("deduplicates 50 identical errors into a single event with count >= 50", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      for (let i = 0; i < 50; i++) {
+        window.onerror?.(
+          "Repeated test error",
+          "test.js",
+          1,
+          1,
+          new Error("Repeated test error"),
+        )
+      }
+    })
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("js_error")
+    const deduped = events.filter(
+      (e) => e.payload.message === "Repeated test error",
+    )
+    expect(deduped).toHaveLength(1)
+    expect(deduped[0].payload.count).toBeGreaterThanOrEqual(50)
+  })
+
+  test("filters browser extension errors (chrome-extension://)", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    // Inject extension error (should be filtered)
+    await page.evaluate(() => {
+      window.onerror?.(
+        "Extension error",
+        "chrome-extension://abc/script.js",
+        1,
+        1,
+        new Error("ext"),
+      )
+    })
+
+    // Also inject a valid error to prove the snippet is working
+    await page.evaluate(() => {
+      window.onerror?.(
+        "Valid error for control",
+        "test.js",
+        1,
+        1,
+        new Error("valid"),
+      )
+    })
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("js_error")
+    expect(
+      events.some((e) => e.payload.message === "Extension error"),
+    ).toBe(false)
+    expect(
+      events.some((e) => e.payload.message === "Valid error for control"),
+    ).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Test 5 — request_error
+// ---------------------------------------------------------------------------
+
+test.describe("Test 5 — request_error", () => {
+  test("captures fetch 500 with status_code", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      fetch("/api/chaos/error").catch(() => {})
+    })
+    await page.waitForTimeout(1000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("request_error")
+    const err500 = events.find((e) =>
+      (e.payload.url as string).includes("/api/chaos/error"),
+    )
+    expect(err500, "request_error with 500 should be captured").toBeDefined()
+    expect(err500!.payload.status_code).toBe(500)
+  })
+
+  test("captures timeout error (chaos endpoint 15s > snippet threshold 10s)", async ({
+    page,
+  }) => {
+    // This test waits ~16s for the slow endpoint to respond
+    test.setTimeout(30_000)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    // Fire and forget — server responds after 15s
+    await page.evaluate(() => {
+      fetch("/api/chaos/timeout").catch(() => {})
+    })
+
+    // Wait for the response to come back (15s + margin)
+    await page.waitForTimeout(16_000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("request_error")
+    const timeout = events.find((e) =>
+      (e.payload.url as string).includes("/api/chaos/timeout"),
+    )
+    expect(timeout, "request_error with timeout should be captured").toBeDefined()
+    expect(timeout!.payload.error_type).toBe("timeout")
+  })
+
+  test("filters analytics domain errors (deny-list)", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    // Abort the analytics request so it fails quickly
+    await page.route("**google-analytics.com**", (route: Route) =>
+      route.abort(),
+    )
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      fetch("https://google-analytics.com/collect").catch(() => {})
+    })
+    await page.waitForTimeout(1000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("request_error")
+    const gaErrors = events.filter((e) =>
+      (e.payload.url as string).includes("google-analytics.com"),
+    )
+    expect(gaErrors, "Analytics errors should be filtered by deny-list").toHaveLength(0)
+  })
+
+  test("original fetch still receives its response", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    const status = await page.evaluate(async () => {
+      const res = await fetch("/api/chaos/error")
+      return res.status
+    })
+
+    expect(status).toBe(500)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Test 6 — resource_error
+// ---------------------------------------------------------------------------
+
+test.describe("Test 6 — resource_error", () => {
+  test("captures broken script (tag SCRIPT)", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      const script = document.createElement("script")
+      script.src = "/nonexistent-test-chaos.js"
+      document.head.appendChild(script)
+    })
+    await page.waitForTimeout(1000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("resource_error")
+    const scriptErr = events.find(
+      (e) =>
+        e.payload.tag === "SCRIPT" &&
+        (e.payload.url as string).includes("nonexistent-test-chaos.js"),
+    )
+    expect(scriptErr, "resource_error for SCRIPT should be captured").toBeDefined()
+  })
+
+  test("captures broken CSS link (tag LINK)", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      const link = document.createElement("link")
+      link.rel = "stylesheet"
+      link.href = "/nonexistent-test-chaos.css"
+      document.head.appendChild(link)
+    })
+    await page.waitForTimeout(1000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("resource_error")
+    const cssErr = events.find(
+      (e) =>
+        e.payload.tag === "LINK" &&
+        (e.payload.url as string).includes("nonexistent-test-chaos.css"),
+    )
+    expect(cssErr, "resource_error for LINK should be captured").toBeDefined()
+  })
+
+  test("captures broken image (tag IMG)", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      const img = document.createElement("img")
+      img.src = "/nonexistent-test-chaos.jpg"
+      document.body.appendChild(img)
+    })
+    await page.waitForTimeout(1000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("resource_error")
+    const imgErr = events.find(
+      (e) =>
+        e.payload.tag === "IMG" &&
+        (e.payload.url as string).includes("nonexistent-test-chaos.jpg"),
+    )
+    expect(imgErr, "resource_error for IMG should be captured").toBeDefined()
+  })
+
+  test("filters deny-listed domain (connect.facebook.net)", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    // Abort the facebook request so the error event fires quickly
+    await page.route("**facebook.net**", (route: Route) => route.abort())
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    // Inject deny-listed image (should be filtered)
+    await page.evaluate(() => {
+      const img = document.createElement("img")
+      img.src = "https://connect.facebook.net/fake.png"
+      document.body.appendChild(img)
+    })
+
+    // Also inject a valid broken image to prove the collector works
+    await page.evaluate(() => {
+      const img = document.createElement("img")
+      img.src = "/valid-broken-control.jpg"
+      document.body.appendChild(img)
+    })
+    await page.waitForTimeout(1000)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("resource_error")
+    expect(
+      events.some((e) => (e.payload.url as string).includes("facebook.net")),
+    ).toBe(false)
+    expect(
+      events.some((e) =>
+        (e.payload.url as string).includes("valid-broken-control.jpg"),
+      ),
+    ).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Test 7 — ux_error
+// ---------------------------------------------------------------------------
+
+test.describe("Test 7 — ux_error", () => {
+  test("captures visible alert div with text and selector", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      const div = document.createElement("div")
+      div.className = "alert alert-danger"
+      div.setAttribute("role", "alert")
+      div.textContent = "Une erreur est survenue, veuillez réessayer"
+      document.body.appendChild(div)
+    })
+    await page.waitForTimeout(500)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("ux_error")
+    const alert = events.find((e) =>
+      (e.payload.text as string).includes("Une erreur est survenue"),
+    )
+    expect(alert, "ux_error should be captured for visible alert").toBeDefined()
+    expect(alert!.payload.selector).toBeTruthy()
+  })
+
+  test("ignores hidden alert (display: none)", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    // Inject hidden alert (should be filtered)
+    await page.evaluate(() => {
+      const div = document.createElement("div")
+      div.className = "alert alert-danger"
+      div.style.display = "none"
+      div.textContent = "Hidden error message"
+      document.body.appendChild(div)
+    })
+
+    // Also inject a visible one to prove the collector works
+    await page.evaluate(() => {
+      const div = document.createElement("div")
+      div.className = "alert alert-danger"
+      div.textContent = "Visible control error"
+      document.body.appendChild(div)
+    })
+    await page.waitForTimeout(500)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("ux_error")
+    expect(
+      events.some((e) =>
+        (e.payload.text as string).includes("Hidden error message"),
+      ),
+    ).toBe(false)
+    expect(
+      events.some((e) =>
+        (e.payload.text as string).includes("Visible control error"),
+      ),
+    ).toBe(true)
+  })
+
+  test("captures element with role='alert'", async ({ page }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, "doomcheck")
+
+    await page.goto("/")
+    await page.waitForTimeout(500)
+
+    await page.evaluate(() => {
+      const span = document.createElement("span")
+      span.setAttribute("role", "alert")
+      span.textContent = "Payment failed, please retry"
+      document.body.appendChild(span)
+    })
+    await page.waitForTimeout(500)
+
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("ux_error")
+    const roleAlert = events.find((e) =>
+      (e.payload.text as string).includes("Payment failed"),
+    )
+    expect(roleAlert, "ux_error should capture role='alert' elements").toBeDefined()
+  })
+})

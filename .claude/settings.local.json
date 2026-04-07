@@ -7,7 +7,9 @@
       "Bash(git reset:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(node -e \":*)"
     ]
   }
 }
