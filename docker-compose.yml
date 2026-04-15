@@ -1,0 +1,55 @@
+services:
+  athletedatahub:
+    build:
+      context: ./apps/athletedatahub
+      args:
+        NEXT_PUBLIC_LOCALE: EN
+    expose:
+      - "3000"
+    networks:
+      - web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  taguardian-com:
+    build:
+      context: ./apps/taguardian-com
+      args:
+        NEXT_PUBLIC_GTM_ID: ""
+    expose:
+      - "3000"
+    networks:
+      - web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  doomcheck:
+    build:
+      context: ./apps/doomcheck
+      args:
+        NEXT_PUBLIC_CHAOS_FLAGS: ""
+    expose:
+      - "3000"
+    networks:
+      - web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  web:
+    external: true

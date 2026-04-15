@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test"
 import type { Page } from "@playwright/test"
+import fs from "node:fs"
+import path from "node:path"
+import { gzipSync } from "node:zlib"
 import { IngestInterceptor } from "../helpers/ingest-interceptor"
 import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
@@ -533,5 +536,222 @@ test.describe("Test 3 — Crash isolation", () => {
       korvusErrors,
       "No Korvus-related console errors should appear",
     ).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Smoke perf gates v2 (pré-release client)
+// ---------------------------------------------------------------------------
+//
+// ⚠️ LIMITE CONNUE : ces mesures tournent en local sur Next.js dev server,
+// même process que Playwright, zéro trafic, zéro CDN, pas de compression
+// HTTP variable, pas de latence réseau. Elles ne reflètent PAS l'impact
+// perf réel sur un vrai site client en prod.
+//
+// Ce qui EST fiable ici :
+//   - Gate 1 (bundle size gzip) : déterministe, insensible à l'env → contrat
+//     dur. Un snippet qui dépasse 110 KB gzip sort de CI, point.
+//
+// Ce qui N'EST PAS fiable et pourquoi les seuils sont permissifs :
+//   - Gate 2 (TBT delta)    : filet anti-catastrophe seulement. Seuil large
+//                             (500 ms) pour catcher un snippet bloquant
+//                             massivement sans produire de faux positifs
+//                             sur la noise dev-server.
+//   - Gate 3 (long tasks Δ) : filet anti-catastrophe. Seuil large (≤ 5)
+//                             pour la même raison.
+//
+// 📌 Phase 6 (todo) : mesure perf réelle via RUM en prod.
+//   Instrumenter web-vitals côté client chez le premier client pilote,
+//   baseline 7j, alerter si p75 LCP dégrade > 10% vs baseline. Ces gates
+//   locaux ne remplacent PAS cette instrumentation — ils attrapent
+//   uniquement une régression grossière au niveau du snippet lui-même.
+
+const SNIPPET_DIST_PATH = path.resolve(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "platform",
+  "snippet",
+  "dist",
+  "korvus.min.js",
+)
+
+// Gate 1 = contrat dur. Les deux autres sont des smoke tests anti-catastrophe.
+const MAX_GZIP_BYTES = 110 * 1024 // 110 KB — hard contract
+const MAX_TBT_DELTA_MS = 500 // smoke only — noise dev-server
+const MAX_LONG_TASKS_DELTA = 5 // smoke only — noise dev-server
+
+function median(arr: number[]): number {
+  const sorted = [...arr].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid]
+}
+
+interface BlockingMetrics {
+  // Total Blocking Time : somme des (duration - 50ms) pour chaque long task
+  // entre FCP et un point stable post-load (TBT proxy sans Lighthouse).
+  tbt: number
+  long_tasks_count: number
+}
+
+/**
+ * Mesure la main-thread pressure d'une page via PerformanceObserver
+ * sur les entrées `longtask`. Attend 3s après load pour laisser le snippet
+ * booter et faire son travail post-idle.
+ */
+async function collectBlockingMetrics(page: Page): Promise<BlockingMetrics> {
+  await page.waitForLoadState("load")
+  await page.waitForTimeout(3000)
+
+  return page.evaluate(() => {
+    return new Promise<BlockingMetrics>((resolve) => {
+      const longTasks: PerformanceEntry[] = []
+      try {
+        const obs = new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) longTasks.push(e)
+        })
+        obs.observe({ type: "longtask", buffered: true })
+        // Laisse l'observer capturer les entries bufferisées
+        setTimeout(() => {
+          try {
+            obs.disconnect()
+          } catch {
+            /* ignore */
+          }
+          let tbt = 0
+          for (const t of longTasks) {
+            // Contribution TBT = max(0, duration - 50ms)
+            const contrib = Math.max(0, t.duration - 50)
+            tbt += contrib
+          }
+          resolve({ tbt, long_tasks_count: longTasks.length })
+        }, 300)
+      } catch {
+        resolve({ tbt: 0, long_tasks_count: 0 })
+      }
+    })
+  })
+}
+
+test.describe("Phase 3 — Perf gates v2 (Gate 1 hard, Gates 2/3 smoke)", () => {
+  // --- Gate 1 — Bundle size (gzip) ---
+
+  test("gate 1 — gzip(korvus.min.js) < 110 KB", () => {
+    expect(
+      fs.existsSync(SNIPPET_DIST_PATH),
+      `snippet dist must exist at ${SNIPPET_DIST_PATH} — run 'cd platform && npm run snippet:build' first`,
+    ).toBe(true)
+
+    const raw = fs.readFileSync(SNIPPET_DIST_PATH)
+    const gz = gzipSync(raw)
+    const rawKb = (raw.length / 1024).toFixed(1)
+    const gzKb = (gz.length / 1024).toFixed(1)
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[perf gate] korvus.min.js  raw=${rawKb} KB  gzip=${gzKb} KB  limit=110 KB`,
+    )
+
+    expect(
+      gz.length,
+      `gzip(korvus.min.js) should be < 110 KB, got ${gzKb} KB`,
+    ).toBeLessThan(MAX_GZIP_BYTES)
+  })
+
+  // --- Gate 2 — TBT delta (SMOKE, pas contrat) ---
+
+  test.describe("gate 2 — TBT delta smoke (anti-catastrophe, < 500 ms)", () => {
+    test.describe.configure({ retries: 2 })
+
+    test("delta TBT avec/sans snippet (médiane 5 runs) < 500 ms", async ({
+      context,
+    }) => {
+      test.setTimeout(120_000)
+      const RUNS = 5
+
+      const withoutTbt: number[] = []
+      for (let i = 0; i < RUNS; i++) {
+        const p = await context.newPage()
+        await blockNativeSnippet(p)
+        await p.goto("/products/novapro-x12")
+        const m = await collectBlockingMetrics(p)
+        withoutTbt.push(m.tbt)
+        await p.close()
+      }
+
+      const withTbt: number[] = []
+      for (let i = 0; i < RUNS; i++) {
+        const p = await context.newPage()
+        await injectSnippet(p, "doomcheck")
+        await p.goto("/products/novapro-x12")
+        const m = await collectBlockingMetrics(p)
+        withTbt.push(m.tbt)
+        await p.close()
+      }
+
+      const medWithout = median(withoutTbt)
+      const medWith = median(withTbt)
+      const delta = medWith - medWithout
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[perf gate] TBT median  without=${medWithout.toFixed(1)}ms  with=${medWith.toFixed(1)}ms  delta=${delta.toFixed(1)}ms  (limit ${MAX_TBT_DELTA_MS}ms)`,
+      )
+
+      expect(
+        delta,
+        `TBT delta ${delta.toFixed(1)}ms should be < ${MAX_TBT_DELTA_MS}ms (without median ${medWithout.toFixed(1)}ms, with median ${medWith.toFixed(1)}ms)`,
+      ).toBeLessThan(MAX_TBT_DELTA_MS)
+    })
+  })
+
+  // --- Gate 3 — Long tasks count delta (SMOKE, pas contrat) ---
+
+  test.describe("gate 3 — long tasks delta smoke (anti-catastrophe, ≤ 5)", () => {
+    test.describe.configure({ retries: 2 })
+
+    test("delta long tasks avec/sans snippet (médiane 5 runs) ≤ 5", async ({
+      context,
+    }) => {
+      test.setTimeout(120_000)
+      const RUNS = 5
+
+      const withoutCount: number[] = []
+      for (let i = 0; i < RUNS; i++) {
+        const p = await context.newPage()
+        await blockNativeSnippet(p)
+        await p.goto("/products/novapro-x12")
+        const m = await collectBlockingMetrics(p)
+        withoutCount.push(m.long_tasks_count)
+        await p.close()
+      }
+
+      const withCount: number[] = []
+      for (let i = 0; i < RUNS; i++) {
+        const p = await context.newPage()
+        await injectSnippet(p, "doomcheck")
+        await p.goto("/products/novapro-x12")
+        const m = await collectBlockingMetrics(p)
+        withCount.push(m.long_tasks_count)
+        await p.close()
+      }
+
+      const medWithout = median(withoutCount)
+      const medWith = median(withCount)
+      const delta = medWith - medWithout
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[perf gate] long_tasks median  without=${medWithout}  with=${medWith}  delta=${delta}  (limit ${MAX_LONG_TASKS_DELTA})`,
+      )
+
+      expect(
+        delta,
+        `Long tasks delta ${delta} should be ≤ ${MAX_LONG_TASKS_DELTA} (without median ${medWithout}, with median ${medWith})`,
+      ).toBeLessThanOrEqual(MAX_LONG_TASKS_DELTA)
+    })
   })
 })

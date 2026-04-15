@@ -53,8 +53,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           }}
         />
         {/* INJECT_SCRIPTS */}
-        <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001012",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"/api/ingest",platform:"custom"};` }} />
-        <script src="/api/snippet/korvus.min.js" defer />
+        <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001012",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"https://app.korvus.fr/api/ingest",platform:"custom"};` }} />
+        <script src="https://app.korvus.fr/api/snippet/korvus.min.js" defer />
       </head>
       <body className="min-h-screen flex flex-col">
         {/* Google Tag Manager (noscript) */}

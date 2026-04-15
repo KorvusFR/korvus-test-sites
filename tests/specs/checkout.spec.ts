@@ -1,0 +1,985 @@
+import { test, expect, type Page } from "@playwright/test"
+import { IngestInterceptor } from "../helpers/ingest-interceptor"
+import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
+
+// All tests run on doomcheck (port 3003)
+// This spec covers the v2 events NOT covered by the legacy suite :
+//   - add_to_cart_succeeded (cascade 5 niveaux)
+//   - variant_selected (cascade 5 niveaux + OOS)
+//   - promo_applied source="dom" + promo_code_rejected
+//   - payment_method_selected (cascade 5 niveaux)
+//   - shipping_method_selected (cascade 4 niveaux)
+//   - payment_attempted (cascade 5 niveaux)
+//   - 3ds_initiated + 3ds_completed (4 outcomes)
+//   - tag_fired via URL interception v2
+//   - datalayer_unknown
+
+const doomcheck = getSiteConfig("doomcheck")
+
+const PAGE_TYPE_RULES = {
+  checkout: { url_contains: "/sim/checkout" },
+}
+
+// --- Helpers ---
+
+async function simulateAxeptio(page: Page, granted: boolean): Promise<void> {
+  await page.addInitScript((consent: boolean) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any
+    w._axcb = []
+    w.axeptio_settings = { cookies_consent: consent }
+  }, granted)
+}
+
+// Attend le boot complet du snippet (post-load + idle callbacks).
+async function waitBoot(page: Page, ms = 2000): Promise<void> {
+  await page.waitForTimeout(ms)
+}
+
+// ---------------------------------------------------------------------------
+// add_to_cart_succeeded — cascade 5 niveaux (exempt)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — add_to_cart_succeeded", () => {
+  // Note : le bouton ATC (button.add-to-cart#sim-atc) est statique dans
+  // /sim/pdp — findAtcButton() est appelé à l'init du collector ATC, donc
+  // le bouton doit exister avant le boot du snippet.
+
+  test("cascade badge_count: delta de compteur panier déclenche l'event", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      domSelectors: {
+        add_to_cart: "button.add-to-cart",
+        cart_count: "[data-cart-count]",
+      },
+    })
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    // Crée le badge AVANT le clic ATC pour que la 1ère mutation pose la
+    // baseline à 0. La 2nde mutation (→ "1") est détectée comme delta.
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const badge = document.createElement("div")
+      badge.setAttribute("data-cart-count", "")
+      badge.textContent = "0"
+      root.appendChild(badge)
+    })
+    await page.waitForTimeout(150) // baseline callback
+
+    await page.click("#sim-atc")
+    await page.waitForTimeout(100)
+
+    // Incrémente dans la fenêtre 2500ms post-ATC
+    await page.evaluate(() => {
+      const badge = document.querySelector("[data-cart-count]") as HTMLElement
+      badge.textContent = "1"
+    })
+
+    await page.waitForTimeout(600)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("add_to_cart_succeeded")
+    expect(events.length, "add_to_cart_succeeded should fire").toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("badge_count")
+    expect(events[0].payload.ms_since_attempt).toBeGreaterThanOrEqual(0)
+    expect(events[0].payload.ms_since_attempt).toBeLessThanOrEqual(2500)
+  })
+
+  test("cascade localstorage_cart: Storage.setItem sur clé cart déclenche", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      domSelectors: { add_to_cart: "button.add-to-cart" },
+    })
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.click("#sim-atc")
+    await page.waitForTimeout(200)
+
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "cart",
+        JSON.stringify({ items: [{ id: "SIM-001", qty: 1, price: 99.99 }] }),
+      )
+    })
+
+    await page.waitForTimeout(600)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("add_to_cart_succeeded")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("localstorage_cart")
+  })
+
+  test("cascade url_change: navigation vers /cart déclenche", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      domSelectors: { add_to_cart: "button.add-to-cart" },
+    })
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.click("#sim-atc")
+    await page.waitForTimeout(200)
+
+    // Navigation SPA-like vers /cart — doit matcher la regex panier.
+    // pushState est monkey-patché par le snippet → dispatchNav fire direct.
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/cart?sim=1")
+    })
+
+    await page.waitForTimeout(600)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("add_to_cart_succeeded")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("url_change")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// variant_selected — cascade 5 niveaux + OOS (exempt, PDP only)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — variant_selected", () => {
+  test("cascade select_change: <select name='size'> déclenche", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const sel = document.createElement("select")
+      sel.name = "size"
+      const optDefault = document.createElement("option")
+      optDefault.value = ""
+      optDefault.text = "Choose a size"
+      sel.appendChild(optDefault)
+      const optM = document.createElement("option")
+      optM.value = "M"
+      optM.text = "Medium"
+      sel.appendChild(optM)
+      root.appendChild(sel)
+    })
+
+    await page.selectOption('select[name="size"]', "M")
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("variant_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("select_change")
+    expect(events[0].payload.is_out_of_stock).toBe(false)
+  })
+
+  test("cascade radio_change: input[type=radio] name='color' déclenche", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const fieldset = document.createElement("fieldset")
+      for (const value of ["red", "blue"]) {
+        const input = document.createElement("input")
+        input.type = "radio"
+        input.name = "color"
+        input.value = value
+        input.id = `color-${value}`
+        const label = document.createElement("label")
+        label.htmlFor = input.id
+        label.textContent = value
+        fieldset.appendChild(input)
+        fieldset.appendChild(label)
+      }
+      root.appendChild(fieldset)
+    })
+
+    await page.check('input[name="color"][value="red"]')
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("variant_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("radio_change")
+  })
+
+  test("cascade data_attr_click: [data-variant] cliqué déclenche", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const wrapper = document.createElement("div")
+      wrapper.className = "variant-size"
+      for (const v of ["S", "M", "L"]) {
+        const div = document.createElement("div")
+        div.setAttribute("data-variant", v)
+        div.textContent = v
+        div.id = `variant-${v}`
+        wrapper.appendChild(div)
+      }
+      root.appendChild(wrapper)
+    })
+
+    await page.click("#variant-M")
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("variant_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("data_attr_click")
+  })
+
+  test("OOS oos_class_marker: select dans parent .out-of-stock → is_out_of_stock=true", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      // Wrapper avec class OUT_OF_STOCK_CLASS_TOKEN (cascade oos_class_marker).
+      const wrapper = document.createElement("div")
+      wrapper.className = "variant-group out-of-stock"
+      const sel = document.createElement("select")
+      sel.name = "size"
+      const optDefault = document.createElement("option")
+      optDefault.value = ""
+      sel.appendChild(optDefault)
+      const optM = document.createElement("option")
+      optM.value = "M"
+      optM.text = "M"
+      sel.appendChild(optM)
+      wrapper.appendChild(sel)
+      root.appendChild(wrapper)
+    })
+
+    await page.selectOption('select[name="size"]', "M")
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("variant_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.is_out_of_stock).toBe(true)
+    expect(events[0].payload.oos_detection_cascade).toBe("oos_class_marker")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// promo_applied (source DOM) — exempt
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — promo_applied (source: dom)", () => {
+  test("lit le promo_code depuis un sélecteur DOM statique", async ({
+    page,
+  }) => {
+    // L'élément .sim-promo-code est statique dans /sim/checkout/page.tsx —
+    // présent dès le load, donc lu par l'idle task du collector promo-applied.
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+      domSelectors: { promo_code: ".sim-promo-code" },
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page, 2500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("promo_applied")
+    expect(events.length).toBeGreaterThan(0)
+    const domEvent = events.find((e) => e.payload.source === "dom")
+    expect(domEvent).toBeDefined()
+    expect(domEvent!.payload.promo_code).toBe("SUMMER20")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// promo_code_rejected — exempt
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — promo_code_rejected", () => {
+  test("form submit + error keyword → promo_code_rejected émis", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const form = document.createElement("form")
+      form.onsubmit = (e) => e.preventDefault()
+      const input = document.createElement("input")
+      input.type = "text"
+      input.name = "promo"
+      input.value = "BADCODE"
+      input.id = "promo-input"
+      form.appendChild(input)
+      const btn = document.createElement("button")
+      btn.type = "submit"
+      btn.textContent = "Apply"
+      form.appendChild(btn)
+      root.appendChild(form)
+    })
+
+    await page.click('button[type="submit"]')
+    // Ajoute l'erreur DOM dans la fenêtre de détection
+    await page.waitForTimeout(100)
+    await page.evaluate(() => {
+      const input = document.getElementById("promo-input") as HTMLInputElement
+      input.classList.add("error")
+      const errorMsg = document.createElement("div")
+      errorMsg.className = "error-text"
+      errorMsg.textContent = "Promo code invalid"
+      input.parentElement?.appendChild(errorMsg)
+    })
+
+    await page.waitForTimeout(800)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("promo_code_rejected")
+    expect(events.length, "promo_code_rejected should be emitted").toBeGreaterThan(0)
+    expect(events[0].payload.promo_code).toBe("BADCODE")
+    expect(String(events[0].payload.rejection_text).toLowerCase()).toContain(
+      "invalid",
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// payment_method_selected — cascade 5 niveaux (exempt, checkout page_type)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — payment_method_selected", () => {
+  test("cascade radio_change: input[type=radio] name='payment_method'", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const wrapper = document.createElement("div")
+      wrapper.className = "payment-options"
+      for (const v of ["card", "paypal"]) {
+        const input = document.createElement("input")
+        input.type = "radio"
+        input.name = "payment_method"
+        input.value = v
+        input.id = `pay-${v}`
+        const label = document.createElement("label")
+        label.htmlFor = input.id
+        label.textContent = v === "card" ? "Credit card" : "PayPal"
+        wrapper.appendChild(input)
+        wrapper.appendChild(label)
+      }
+      root.appendChild(wrapper)
+    })
+
+    await page.check('input[name="payment_method"][value="card"]')
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("payment_method_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("radio_change")
+    expect(String(events[0].payload.method_value_raw).toLowerCase()).toContain(
+      "card",
+    )
+  })
+
+  test("cascade data_attr_click: [data-payment-method] + payment context", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      // Parent avec token "payment" pour satisfaire hasPaymentContext
+      const wrapper = document.createElement("div")
+      wrapper.id = "payment-options"
+      const tile = document.createElement("div")
+      tile.setAttribute("data-payment-method", "paypal")
+      tile.id = "pay-paypal"
+      tile.textContent = "PayPal"
+      wrapper.appendChild(tile)
+      root.appendChild(wrapper)
+    })
+
+    await page.click("#pay-paypal")
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("payment_method_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("data_attr_click")
+  })
+
+  test("cascade wallet_button_click: <apple-pay-button> cliqué", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    // <apple-pay-button> est un custom element sans layout par défaut →
+    // Playwright.click() timeout sur "not visible". On dispatch l'event
+    // manuellement (le collector écoute la phase capture, pas le rendu).
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const btn = document.createElement("apple-pay-button")
+      btn.id = "sim-apple-pay"
+      btn.style.display = "block"
+      btn.style.width = "200px"
+      btn.style.height = "40px"
+      root.appendChild(btn)
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("payment_method_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("wallet_button_click")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// shipping_method_selected — cascade 4 niveaux (exempt, checkout page_type)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — shipping_method_selected", () => {
+  test("cascade radio_change: input[type=radio] name='shipping_method'", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const wrapper = document.createElement("div")
+      wrapper.className = "shipping-options"
+      for (const v of ["express", "standard"]) {
+        const input = document.createElement("input")
+        input.type = "radio"
+        input.name = "shipping_method"
+        input.value = v
+        input.id = `ship-${v}`
+        const label = document.createElement("label")
+        label.htmlFor = input.id
+        label.textContent = v === "express" ? "Express delivery" : "Standard"
+        wrapper.appendChild(input)
+        wrapper.appendChild(label)
+      }
+      root.appendChild(wrapper)
+    })
+
+    await page.check('input[name="shipping_method"][value="express"]')
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("shipping_method_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("radio_change")
+    expect(String(events[0].payload.method_value_raw).toLowerCase()).toContain(
+      "express",
+    )
+  })
+
+  test("cascade data_attr_click: [data-shipping-method] + shipping context", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const wrapper = document.createElement("div")
+      wrapper.id = "shipping-options"
+      const tile = document.createElement("div")
+      tile.setAttribute("data-shipping-method", "standard")
+      tile.id = "ship-standard"
+      tile.textContent = "Standard 3-5 days"
+      wrapper.appendChild(tile)
+      root.appendChild(wrapper)
+    })
+
+    await page.click("#ship-standard")
+    await page.waitForTimeout(500)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("shipping_method_selected")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("data_attr_click")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// payment_attempted — cascade 5 niveaux (exempt, checkout page_type)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — payment_attempted", () => {
+  test("cascade submit_button_click: <button type=submit> in form action=/pay", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const form = document.createElement("form")
+      form.action = "/checkout/pay"
+      form.onsubmit = (e) => e.preventDefault()
+      const btn = document.createElement("button")
+      btn.type = "submit"
+      btn.id = "sim-pay-submit"
+      btn.textContent = "Pay 99.99 €"
+      form.appendChild(btn)
+      root.appendChild(form)
+    })
+
+    await page.click("#sim-pay-submit")
+    await page.waitForTimeout(700)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("payment_attempted")
+    expect(events.length).toBeGreaterThan(0)
+    // Dans un form submit, le collector choisit en priorité submit_button_click
+    expect(
+      ["submit_button_click", "keyword_button_click"].includes(
+        String(events[0].payload.cascade_matched),
+      ),
+    ).toBe(true)
+  })
+
+  test("cascade keyword_button_click: bouton 'Payer' hors form", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const btn = document.createElement("button")
+      btn.id = "sim-pay-btn"
+      btn.type = "button"
+      btn.textContent = "Payer"
+      root.appendChild(btn)
+    })
+
+    await page.click("#sim-pay-btn")
+    await page.waitForTimeout(700)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("payment_attempted")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("keyword_button_click")
+  })
+
+  test("cascade wallet_button_click: apple-pay-button cliqué", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const btn = document.createElement("apple-pay-button")
+      btn.id = "sim-wallet-pay"
+      btn.style.display = "block"
+      btn.style.width = "200px"
+      btn.style.height = "40px"
+      root.appendChild(btn)
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    await page.waitForTimeout(700)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("payment_attempted")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("wallet_button_click")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 3ds_initiated + 3ds_completed (exempt)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — 3ds_initiated", () => {
+  test("cascade iframe_acs_pattern_match: iframe src hooks.stripe.com/3d_secure", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const iframe = document.createElement("iframe")
+      iframe.id = "sim-3ds-frame"
+      iframe.src = "https://hooks.stripe.com/3d_secure/acs_redirect"
+      iframe.style.width = "400px"
+      iframe.style.height = "400px"
+      root.appendChild(iframe)
+    })
+
+    await page.waitForTimeout(800)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("3ds_initiated")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.cascade_matched).toBe("iframe_acs_pattern_match")
+    expect(String(events[0].payload.acs_host)).toContain("stripe")
+  })
+
+  test("cascade iframe_payment_redirect: iframe src avec keyword /3ds/", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const iframe = document.createElement("iframe")
+      iframe.id = "sim-3ds-frame"
+      iframe.src = "https://unknown-bank.example/challenge/3ds/authenticate"
+      iframe.style.width = "400px"
+      iframe.style.height = "400px"
+      root.appendChild(iframe)
+    })
+
+    await page.waitForTimeout(800)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("3ds_initiated")
+    expect(events.length).toBeGreaterThan(0)
+    expect(
+      [
+        "iframe_payment_redirect",
+        "iframe_acs_pattern_match",
+      ].includes(String(events[0].payload.cascade_matched)),
+    ).toBe(true)
+  })
+})
+
+test.describe("V2 — 3ds_completed", () => {
+  test("outcome success: iframe removed puis navigation vers /merci", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    // Démarrer 3DS
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const iframe = document.createElement("iframe")
+      iframe.id = "sim-3ds-frame"
+      iframe.src = "https://hooks.stripe.com/3d_secure/acs_redirect"
+      root.appendChild(iframe)
+    })
+    await page.waitForTimeout(800)
+
+    // Remove iframe puis navigation vers /merci dans la fenêtre 5s.
+    // Note : /merci est dans PAGE_TYPE_URL_PATTERNS.order_confirmation
+    // (contrairement à /order-confirmation qui ne matche pas /confirmation
+    // à cause du includes substring strict).
+    await page.evaluate(() => {
+      const iframe = document.getElementById("sim-3ds-frame")
+      iframe?.remove()
+    })
+    await page.waitForTimeout(500)
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/merci?order=SIM-42")
+    })
+
+    await page.waitForTimeout(2000)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("3ds_completed")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.outcome).toBe("success")
+  })
+
+  test("outcome failed: iframe removed puis élément d'erreur apparaît", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...doomcheck,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const iframe = document.createElement("iframe")
+      iframe.id = "sim-3ds-frame"
+      iframe.src = "https://hooks.stripe.com/3d_secure/acs_redirect"
+      root.appendChild(iframe)
+    })
+    await page.waitForTimeout(800)
+
+    await page.evaluate(() => {
+      const iframe = document.getElementById("sim-3ds-frame")
+      iframe?.remove()
+    })
+    await page.waitForTimeout(300)
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const err = document.createElement("div")
+      err.className = "error declined"
+      err.setAttribute("role", "alert")
+      err.textContent = "Payment declined by bank"
+      root.appendChild(err)
+    })
+
+    await page.waitForTimeout(2000)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("3ds_completed")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.outcome).toBe("failed")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// tag_fired — v2 via URL interception (consent required)
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — tag_fired (URL interception)", () => {
+  test("fetch vers connect.facebook.net → tag_fired meta_pixel", async ({
+    page,
+  }) => {
+    // Mock les domaines tiers (pas de trafic réseau réel)
+    await page.route("**connect.facebook.net/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "" }),
+    )
+    await page.route("**facebook.com/tr**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "" }),
+    )
+
+    await simulateAxeptio(page, true)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(async () => {
+      await fetch("https://www.facebook.com/tr?id=123456&ev=PageView").catch(
+        () => undefined,
+      )
+    })
+
+    await page.waitForTimeout(600)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("tag_fired")
+    expect(events.length, "tag_fired should be emitted").toBeGreaterThan(0)
+    expect(events[0].payload.tag_name).toBe("meta_pixel")
+  })
+
+  test("fetch vers google-analytics.com/g/collect → tag_fired google_analytics", async ({
+    page,
+  }) => {
+    await page.route("**google-analytics.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "" }),
+    )
+
+    await simulateAxeptio(page, true)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(async () => {
+      await fetch(
+        "https://www.google-analytics.com/g/collect?v=2&tid=G-ABC123DEF&en=page_view",
+      ).catch(() => undefined)
+    })
+
+    await page.waitForTimeout(600)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("tag_fired")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.tag_name).toBe("google_analytics")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// datalayer_unknown — consent required
+// ---------------------------------------------------------------------------
+
+test.describe("V2 — datalayer_unknown", () => {
+  test("push d'un event custom avec ecommerce.value → datalayer_unknown", async ({
+    page,
+  }) => {
+    await simulateAxeptio(page, true)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/pdp")
+    await waitBoot(page)
+
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dl = ((window as any).dataLayer ||= [])
+      dl.push({
+        event: "custom_conversion_marketing",
+        ecommerce: {
+          value: 199.99,
+          currency: "EUR",
+          items: [{ item_id: "SIM-001", item_name: "Sim", price: 199.99, quantity: 1 }],
+        },
+      })
+    })
+
+    await page.waitForTimeout(400)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("datalayer_unknown")
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].payload.event_name).toBe("custom_conversion_marketing")
+    expect(events[0].payload.has_ecommerce).toBe(true)
+    expect(events[0].payload.has_value).toBe(true)
+    expect(events[0].payload.has_items).toBe(true)
+  })
+})

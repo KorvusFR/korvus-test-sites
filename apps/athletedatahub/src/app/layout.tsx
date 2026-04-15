@@ -30,6 +30,18 @@ export default function RootLayout({
     <html lang={isFR ? "fr" : "en"}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: "window.dataLayer=window.dataLayer||[];" }} />
+        {/* Fake Meta Pixel (fbq) — simulates pixel presence for testing */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.fbq=function(){window.__korvusTagLog=window.__korvusTagLog||[];window.__korvusTagLog.push({tag:"meta_pixel",args:[].slice.call(arguments),ts:Date.now()});};`,
+          }}
+        />
+        {/* Fake GA4 (gtag) — simulates pixel presence for testing */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.gtag=function(){window.__korvusTagLog=window.__korvusTagLog||[];window.__korvusTagLog.push({tag:"ga4",args:[].slice.call(arguments),ts:Date.now()});};`,
+          }}
+        />
         {/* INJECT_SCRIPTS */}
         <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"${isFR ? "00000000-0000-4000-a000-000000001011" : "00000000-0000-4000-a000-000000001010"}",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"/api/ingest",platform:"custom"};` }} />
         <script src="/api/snippet/korvus.min.js" defer />

@@ -54,13 +54,13 @@ test.describe("Test 4 — js_error", () => {
 
     await page.evaluate(() => {
       for (let i = 0; i < 50; i++) {
-        window.onerror?.(
-          "Repeated test error",
-          "test.js",
-          1,
-          1,
-          new Error("Repeated test error"),
-        )
+        window.dispatchEvent(new ErrorEvent("error", {
+          message: "Repeated test error",
+          filename: "test.js",
+          lineno: 1,
+          colno: 1,
+          error: new Error("Repeated test error"),
+        }))
       }
     })
 
@@ -86,24 +86,24 @@ test.describe("Test 4 — js_error", () => {
 
     // Inject extension error (should be filtered)
     await page.evaluate(() => {
-      window.onerror?.(
-        "Extension error",
-        "chrome-extension://abc/script.js",
-        1,
-        1,
-        new Error("ext"),
-      )
+      window.dispatchEvent(new ErrorEvent("error", {
+        message: "Extension error",
+        filename: "chrome-extension://abc/script.js",
+        lineno: 1,
+        colno: 1,
+        error: new Error("ext"),
+      }))
     })
 
     // Also inject a valid error to prove the snippet is working
     await page.evaluate(() => {
-      window.onerror?.(
-        "Valid error for control",
-        "test.js",
-        1,
-        1,
-        new Error("valid"),
-      )
+      window.dispatchEvent(new ErrorEvent("error", {
+        message: "Valid error for control",
+        filename: "test.js",
+        lineno: 1,
+        colno: 1,
+        error: new Error("valid"),
+      }))
     })
 
     await interceptor.triggerFlush()
@@ -140,7 +140,7 @@ test.describe("Test 5 — request_error", () => {
 
     const events = interceptor.getEvents("request_error")
     const err500 = events.find((e) =>
-      (e.payload.url as string).includes("/api/chaos/error"),
+      (e.payload.url_path as string).includes("/api/chaos/error"),
     )
     expect(err500, "request_error with 500 should be captured").toBeDefined()
     expect(err500!.payload.status_code).toBe(500)
@@ -171,7 +171,7 @@ test.describe("Test 5 — request_error", () => {
 
     const events = interceptor.getEvents("request_error")
     const timeout = events.find((e) =>
-      (e.payload.url as string).includes("/api/chaos/timeout"),
+      (e.payload.url_path as string).includes("/api/chaos/timeout"),
     )
     expect(timeout, "request_error with timeout should be captured").toBeDefined()
     expect(timeout!.payload.error_type).toBe("timeout")
@@ -199,7 +199,7 @@ test.describe("Test 5 — request_error", () => {
 
     const events = interceptor.getEvents("request_error")
     const gaErrors = events.filter((e) =>
-      (e.payload.url as string).includes("google-analytics.com"),
+      (e.payload.url_host as string).includes("google-analytics.com"),
     )
     expect(gaErrors, "Analytics errors should be filtered by deny-list").toHaveLength(0)
   })
@@ -247,7 +247,7 @@ test.describe("Test 6 — resource_error", () => {
     const scriptErr = events.find(
       (e) =>
         e.payload.tag === "SCRIPT" &&
-        (e.payload.url as string).includes("nonexistent-test-chaos.js"),
+        (e.payload.url_path as string).includes("nonexistent-test-chaos.js"),
     )
     expect(scriptErr, "resource_error for SCRIPT should be captured").toBeDefined()
   })
@@ -274,7 +274,7 @@ test.describe("Test 6 — resource_error", () => {
     const cssErr = events.find(
       (e) =>
         e.payload.tag === "LINK" &&
-        (e.payload.url as string).includes("nonexistent-test-chaos.css"),
+        (e.payload.url_path as string).includes("nonexistent-test-chaos.css"),
     )
     expect(cssErr, "resource_error for LINK should be captured").toBeDefined()
   })
@@ -300,7 +300,7 @@ test.describe("Test 6 — resource_error", () => {
     const imgErr = events.find(
       (e) =>
         e.payload.tag === "IMG" &&
-        (e.payload.url as string).includes("nonexistent-test-chaos.jpg"),
+        (e.payload.url_path as string).includes("nonexistent-test-chaos.jpg"),
     )
     expect(imgErr, "resource_error for IMG should be captured").toBeDefined()
   })
@@ -337,11 +337,11 @@ test.describe("Test 6 — resource_error", () => {
 
     const events = interceptor.getEvents("resource_error")
     expect(
-      events.some((e) => (e.payload.url as string).includes("facebook.net")),
+      events.some((e) => (e.payload.url_host as string).includes("facebook.net")),
     ).toBe(false)
     expect(
       events.some((e) =>
-        (e.payload.url as string).includes("valid-broken-control.jpg"),
+        (e.payload.url_path as string).includes("valid-broken-control.jpg"),
       ),
     ).toBe(true)
   })

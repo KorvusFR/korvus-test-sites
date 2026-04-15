@@ -38,13 +38,13 @@ test.describe("Test 16 — Mode exempt (denied)", () => {
 
     // Inject a JS error (exempt event)
     await page.evaluate(() => {
-      window.onerror?.(
-        "Exempt mode test error",
-        "test.js",
-        1,
-        1,
-        new Error("Exempt mode test error"),
-      )
+      window.dispatchEvent(new ErrorEvent("error", {
+        message: "Exempt mode test error",
+        filename: "test.js",
+        lineno: 1,
+        colno: 1,
+        error: new Error("Exempt mode test error"),
+      }))
     })
     await page.waitForTimeout(500)
 
@@ -160,13 +160,13 @@ test.describe("Test 17 — Mode consent (granted)", () => {
 
     // Inject a JS error (exempt event)
     await page.evaluate(() => {
-      window.onerror?.(
-        "Consent granted test error",
-        "test.js",
-        1,
-        1,
-        new Error("Consent granted test error"),
-      )
+      window.dispatchEvent(new ErrorEvent("error", {
+        message: "Consent granted test error",
+        filename: "test.js",
+        lineno: 1,
+        colno: 1,
+        error: new Error("Consent granted test error"),
+      }))
     })
 
     // Push a valid purchase event (consent-gated)
@@ -208,12 +208,18 @@ test.describe("Test 17 — Mode consent (granted)", () => {
       "structured_data_check (exempt) should be sent",
     ).toBeGreaterThan(0)
 
-    // Consent-gated events
-    const productSeen = interceptor.getEvents("product_seen")
+    // V2 — product_seen est supprimé. Le signal vit dans
+    // pageviews.product_price_visible (consent required). Vérifier que la
+    // colonne est présente quand le consent est granted.
+    const pv = interceptor
+      .getPageviews()
+      .find((p) => p.path.includes("/products/novapro-x12"))
+    expect(pv, "PDP pageview should be captured").toBeDefined()
     expect(
-      productSeen.length,
-      "product_seen should be sent with consent granted",
+      pv!.product_price_visible,
+      "product_price_visible should be present with consent granted",
     ).toBeGreaterThan(0)
+    expect(pv!.product_currency).toBeTruthy()
 
     const validations = interceptor.getEvents("datalayer_validation")
     expect(
@@ -284,13 +290,13 @@ test.describe("Test 18 — Opt-out", () => {
 
     // Inject an error to prove collection would normally work
     await page.evaluate(() => {
-      window.onerror?.(
-        "Optout test error",
-        "test.js",
-        1,
-        1,
-        new Error("Optout test error"),
-      )
+      window.dispatchEvent(new ErrorEvent("error", {
+        message: "Optout test error",
+        filename: "test.js",
+        lineno: 1,
+        colno: 1,
+        error: new Error("Optout test error"),
+      }))
     })
     await page.waitForTimeout(500)
 
@@ -306,5 +312,122 @@ test.describe("Test 18 — Opt-out", () => {
       interceptor.getEvents().length,
       "No events should be captured with opt-out cookie",
     ).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 7 B1 — CMP tardif : consent denied → granted en cours de session
+// ---------------------------------------------------------------------------
+//
+// Scénario réel : l'utilisateur arrive sur le site, le CMP (Axeptio) charge
+// en parallèle, le banner s'affiche quelques secondes plus tard, et le visiteur
+// clique "Accepter". Le snippet doit re-évaluer le consent et activer les
+// collectors consent-gated (dataLayer) à la volée, sinon le premier purchase
+// de la session est perdu.
+//
+// Wiring côté snippet : [platform/snippet/src/index.ts:72](../../../platform/snippet/src/index.ts#L72)
+// appelle `onConsentChange` qui lazily initialise `initDataLayerCollector`
+// quand le consent bascule à "granted" pour la première fois.
+
+test.describe("Phase 7 B1 — Consent mid-session (CMP tardif)", () => {
+  test("consent denied → granted active les collectors gated pour les events à venir", async ({
+    page,
+  }) => {
+    // Init Axeptio en mode denied — le snippet doit boot, voir denied,
+    // et ne PAS initialiser le collector dataLayer.
+    await simulateAxeptio(page, false)
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/products/novapro-x12")
+    await page.waitForTimeout(2000)
+
+    // --- Phase 1 : consent denied ---
+    // Push une purchase AVANT la bascule → doit être perdue (collector non init).
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dl = ((window as any).dataLayer ||= [])
+      dl.push({
+        event: "purchase",
+        ecommerce: {
+          transaction_id: "TX-PRE-CONSENT",
+          value: 100,
+          currency: "EUR",
+          items: [{ item_id: "X", item_name: "X", price: 100, quantity: 1 }],
+        },
+      })
+    })
+    await page.waitForTimeout(200)
+
+    // --- Phase 2 : bascule consent denied → granted ---
+    // Axeptio fire le callback `_axcb` quand l'utilisateur accepte.
+    // Le snippet a subscribé à `_axcb.push(sdk => sdk.on("cookies:complete", ...))`.
+    // On update `axeptio_settings` PUIS on appelle le callback comme Axeptio
+    // le fait en prod quand l'utilisateur interagit avec le banner.
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.axeptio_settings = { cookies_consent: true }
+      // Simule Axeptio qui fire le callback cookies:complete.
+      // Le snippet a fait `_axcb.push(sdk => sdk.on("cookies:complete", cb))`
+      // pendant detectAxeptio, donc _axcb[0] est ce pusher. On lui passe un
+      // faux SDK qui appelle immédiatement son callback on "cookies:complete".
+      if (Array.isArray(w._axcb) && w._axcb.length > 0) {
+        const fakeSdk = {
+          on: (event: string, cb: () => void) => {
+            if (event === "cookies:complete") cb()
+          },
+        }
+        for (const pusher of w._axcb) {
+          try {
+            pusher(fakeSdk)
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    })
+    await page.waitForTimeout(300) // laisse onConsentChange propager
+
+    // --- Phase 3 : consent granted — push une nouvelle purchase ---
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dl = ((window as any).dataLayer ||= [])
+      dl.push({
+        event: "purchase",
+        ecommerce: {
+          transaction_id: "TX-POST-CONSENT",
+          value: 200,
+          currency: "EUR",
+          items: [{ item_id: "Y", item_name: "Y", price: 200, quantity: 1 }],
+        },
+      })
+    })
+    await page.waitForTimeout(400)
+    await interceptor.triggerFlush()
+
+    // --- Assertions ---
+
+    // Session doit avoir consent_status = granted (mis à jour via
+    // updateSessionPayload dans onConsentChange callback).
+    const session = interceptor.getSession()
+    expect(session, "session should be present").toBeDefined()
+    expect(
+      session!.consent_status,
+      "session consent_status should reflect the grant",
+    ).toBe("granted")
+
+    // La purchase POST-consent doit être présente.
+    const purchases = interceptor.getEvents("purchase")
+    const postConsent = purchases.find(
+      (e) => e.payload.transaction_id === "TX-POST-CONSENT",
+    )
+    expect(
+      postConsent,
+      "purchase pushed AFTER consent grant should be captured",
+    ).toBeDefined()
+    expect(postConsent!.payload.value).toBe(200)
   })
 })

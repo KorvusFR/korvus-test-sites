@@ -1,0 +1,60 @@
+# --- gtm (ex /opt/gtm) ---
+gtm.korvus.fr {
+	@api path /api/*
+	handle @api {
+		reverse_proxy gtm-app:3000
+	}
+	handle {
+		basicauth {
+			pilou $2a$14$OUfmfjEHW9/TOjjyFpjlN.n5NwRu2HXnUd6SOVvVJbWthYJm2u9LK
+		}
+		reverse_proxy gtm-app:3000
+	}
+}
+
+# --- athletedatahub ---
+athletedatahub.com {
+	encode gzip zstd
+	reverse_proxy athletedatahub:3000 {
+		trusted_proxies private_ranges
+	}
+}
+
+athletedatahub.fr {
+	encode gzip zstd
+	reverse_proxy athletedatahub:3000 {
+		trusted_proxies private_ranges
+	}
+}
+
+www.athletedatahub.com {
+	redir https://athletedatahub.com{uri} permanent
+}
+
+www.athletedatahub.fr {
+	redir https://athletedatahub.fr{uri} permanent
+}
+
+# --- taguardian-com ---
+taguardian.com {
+	encode gzip zstd
+	reverse_proxy taguardian-com:3000 {
+		trusted_proxies private_ranges
+	}
+}
+
+www.taguardian.com {
+	redir https://taguardian.com{uri} permanent
+}
+
+# --- doomcheck ---
+doomcheck.me {
+	encode gzip zstd
+	reverse_proxy doomcheck:3000 {
+		trusted_proxies private_ranges
+	}
+}
+
+www.doomcheck.me {
+	redir https://doomcheck.me{uri} permanent
+}
