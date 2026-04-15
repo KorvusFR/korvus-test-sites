@@ -1,14 +1,26 @@
 import type { Page, Route } from "@playwright/test"
 
 // --- Types mirrored from platform/snippet/src/types.ts (decoupled from snippet build) ---
+//
+// Audit 2026-04-15 (B4) — ce mirror avait dérivé : `landing_url` au lieu de
+// `landing_path`, `client_batch_id` absent, pas de `created_at` sur session
+// ni pageview (audit B1). Conséquence : les specs qui lisaient les types via
+// ce helper n'avaient aucun moyen d'asserter sur le vrai contrat serveur.
+//
+// Règle : à chaque ajout d'un champ dans platform/snippet/src/types.ts qui
+// est consommable via les helpers de test, **mettre à jour ce mirror**. Le
+// sentinel grep `platform/tests/unit/snippet/ingest-interceptor-mirror.test.ts`
+// fail si `landing_url` réapparaît ou si `client_batch_id` / `created_at`
+// disparaissent.
 
 export interface SessionPayload {
   id: string
+  created_at: string
   website_id: string
   consent_status: "granted" | "denied" | "unknown"
   referrer_domain: string | null
   connection_type: string | null
-  landing_url: string | null
+  landing_path: string | null
   landing_page_type: string | null
   utm_source: string | null
   utm_medium: string | null
@@ -17,13 +29,20 @@ export interface SessionPayload {
   has_fbclid: boolean
   has_gclid: boolean
   has_ttclid: boolean
+  viewport_width: number | null
+  is_dark_mode: boolean | null
+  has_adblocker: boolean | null
+  pixels_loaded: string[]
+  pixels_blocked: string[]
 }
 
 export interface PageviewPayload {
   id: string
+  created_at: string
   website_id: string
   session_id: string
-  page_url: string
+  path: string
+  query_params?: Record<string, string> | null
   page_type?: string | null
   ttfb_ms?: number | null
   fcp_ms?: number | null
@@ -35,6 +54,27 @@ export interface PageviewPayload {
   cls_largest_shift?: Record<string, unknown> | null
   resource_timings?: Record<string, unknown>[] | null
   scripts_hash?: string | null
+  // --- Produit (cascade snippet) ---
+  product_id?: string | null
+  product_id_source?: string | null
+  product_name?: string | null
+  product_name_source?: string | null
+  product_available?: boolean | null
+  product_available_source?: string | null
+  product_price_visible?: number | null
+  product_currency?: string | null
+  // --- Page d'erreur ---
+  is_error_page?: boolean | null
+  http_status?: number | null
+  // --- Navigation & engagement (Bloc 4) ---
+  navigation_type?: string | null
+  visibility_time_ms?: number | null
+  max_scroll_depth_pct?: number | null
+  has_interacted?: boolean | null
+  time_to_first_interaction_ms?: number | null
+  was_bfcache_restore?: boolean | null
+  long_tasks_count?: number | null
+  total_blocking_time_ms?: number | null
 }
 
 export interface EventPayload {
@@ -51,6 +91,9 @@ export interface BatchPayload {
   session: SessionPayload
   pageviews: PageviewPayload[]
   events: EventPayload[]
+  // Audit round 4 #2 — idempotency key posée par le snippet au build, stable
+  // sur retry via la sessionStorage queue. Le serveur dédup via Redis SET NX.
+  client_batch_id?: string
 }
 
 // --- Interceptor ---
@@ -72,6 +115,9 @@ export class IngestInterceptor {
   private batches: BatchPayload[] = []
   private pendingResolvers: BatchResolver[] = []
   private page: Page
+  // Phase 7 A2 — header auth vu sur le dernier POST intercepté. Permet à
+  // un spec de vérifier la rotation / valeur exacte si besoin.
+  private lastApiKeyHeader: string | undefined = undefined
 
   constructor(page: Page) {
     this.page = page
@@ -86,6 +132,29 @@ export class IngestInterceptor {
         await route.fallback()
         return
       }
+
+      // Phase 7 A2 — sécurité défense en profondeur : le snippet v2 envoie
+      // obligatoirement un header `X-API-Key` (cf. platform/app/api/ingest/route.ts).
+      // Si un collector ou le transport se met à l'oublier, la prod va
+      // retourner 401 pendant que les tests mockés passent silencieusement.
+      // On fail-closed : pas de X-API-Key = 401 côté mock, forçant le test
+      // à rater visiblement. On accepte la casse header insensitive.
+      const headers = request.headers()
+      const apiKey =
+        headers["x-api-key"] ?? headers["X-API-Key"] ?? headers["X-Api-Key"]
+      if (!apiKey || apiKey.trim() === "") {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[IngestInterceptor] POST /api/ingest missing X-API-Key header — responding 401 to fail the spec loudly.",
+        )
+        await route.fulfill({
+          status: 401,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Missing API key" }),
+        })
+        return
+      }
+      this.lastApiKeyHeader = apiKey
 
       try {
         const body = request.postDataJSON() as BatchPayload
@@ -106,6 +175,16 @@ export class IngestInterceptor {
         body: "{}",
       })
     })
+  }
+
+  /**
+   * Phase 7 A2 — returns the X-API-Key header value from the most recent
+   * intercepted POST, or undefined if no batch has been received yet.
+   * Useful for specs that want to assert the exact header value (e.g.
+   * to detect a rotation that would break prod silently).
+   */
+  getApiKeyHeader(): string | undefined {
+    return this.lastApiKeyHeader
   }
 
   /** Return all events across all batches, optionally filtered by event_name. */

@@ -15,7 +15,9 @@ korvus-test-sites/
 ├── apps/
 │   ├── athletedatahub/   ← Next.js, sport/nutrition
 │   ├── taguardian-com/   ← Next.js, B2B cybersécurité
-│   └── doomcheck/        ← Next.js, chaos lab (à venir)
+│   └── doomcheck/        ← Next.js, chaos lab
+├── Caddyfile             ← Config Caddy (tous les domaines, y compris gtm.korvus.fr)
+├── docker-compose.yml    ← Orchestration des 3 apps (réseau Docker externe `web`)
 └── CLAUDE.md
 ```
 
@@ -35,6 +37,7 @@ Le Shopify Dev Store `taguardian.fr` est **externe** au repo (géré dans l'inte
 
 ### `apps/taguardian-com/`
 - **Domaine** : taguardian.com
+- **Tests auto** : **hors scope**, réservé aux tests manuels et au load testing utilisateur. Aucun projet Playwright ne l'exécute. Voir [.claude/rules/tests-snippet.md](.claude/rules/tests-snippet.md).
 - **Rôle** : e-com high-ticket B2B (cybersécurité), ~100 produits €200–€5000, blog
 - **GTM** : snippet GTM standard dans `layout.tsx`, ID configurable via `NEXT_PUBLIC_GTM_ID`
 - **dataLayer** : initialisé avant le snippet GTM, lib `src/lib/gtm.ts`
@@ -43,7 +46,8 @@ Le Shopify Dev Store `taguardian.fr` est **externe** au repo (géré dans l'inte
 - **Panier** : localStorage, clé `taguardian_cart`
 - **Cookie banner** : consent stocké localStorage, push `cookie_consent` event
 
-### `apps/doomcheck/` *(à venir)*
+### `apps/doomcheck/`
+- **Domaine** : doomcheck.me
 - **Rôle** : chaos lab — anomalies injectables (erreurs JS, latence réseau, DOM mutations)
 - **Objectif** : tester la robustesse du snippet Korvus en conditions dégradées
 
@@ -124,13 +128,33 @@ C'est le point d'insertion officiel pour le snippet Korvus (et tout autre script
 
 ---
 
-## Déploiement — Coolify (VPS 2)
+## Déploiement — Caddy + Docker Compose (VPS 2)
 
 - **Serveur** : `57.129.133.114` (VPS 2)
-- **Orchestrateur** : Coolify — une app Coolify par domaine
-- **Base directory** dans Coolify : `/apps/[nom-app]` (ex : `/apps/athletedatahub`)
-- **Build** : Docker via le `Dockerfile` présent à la racine de chaque app
-- **Variables d'env** : configurées dans l'interface Coolify (pas dans le repo)
+- **Orchestrateur** : Docker Compose (`docker-compose.yml` à la racine du repo)
+- **Reverse proxy** : Caddy 2 Alpine (auto SSL Let's Encrypt) — instance globale dans `/opt/caddy/`
+- **Réseau Docker** : `web` (externe, partagé entre tous les projets du VPS)
+- **Build** : Docker via le `Dockerfile` présent dans chaque app (`apps/[nom-app]/Dockerfile`)
+- **Variables de build** : passées comme `args` dans `docker-compose.yml`
+- **Chemin sur le VPS** : `/opt/korvus-test-sites`
+
+### Architecture VPS
+
+Le VPS héberge plusieurs projets qui partagent un Caddy global :
+
+| Chemin VPS | Rôle | Compose propre |
+|---|---|---|
+| `/opt/caddy/` | Caddy global (reverse proxy + SSL) | Oui — ports 80/443 |
+| `/opt/gtm/` | Dashboard GTM Korvus (app + Postgres) | Oui — réseau `web` + `backend` |
+| `/opt/korvus-test-sites/` | 3 apps test (ce repo) | Oui — réseau `web` |
+
+Le `Caddyfile` qui gère **tous** les domaines (y compris `gtm.korvus.fr`) est versionné dans ce repo et copié dans `/opt/caddy/Caddyfile` au déploiement.
+
+---
+
+## Références
+
+- [.claude/rules/tests-snippet.md](.claude/rules/tests-snippet.md) — Cahier de recette snippet : 21 tests Playwright, infra (IngestInterceptor, inject-snippet), specs par catégorie
 
 ---
 

@@ -2,8 +2,20 @@ import { test, expect } from "@playwright/test"
 import { IngestInterceptor } from "../helpers/ingest-interceptor"
 import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
-// All tests run on taguardian-com (port 3002)
-// Only tests that DIFFER from doomcheck — site-specific behaviors
+// ⚠️ MANUAL ONLY — ce spec n'est exécuté par AUCUN projet Playwright.
+//
+// Décision pérenne (pas un reste historique) : `taguardian-com` (port 3002,
+// GTM dataLayer) est réservé aux tests manuels et au load testing côté
+// utilisateur. Ne jamais l'ajouter à un `testMatch` dans `playwright.config.ts`.
+//
+// Voir :
+//  - test_website/.claude/rules/tests-snippet.md (règle "Hors scope auto")
+//  - platform/.claude/rules/testing.md ("réservé aux tests manuels")
+//
+// Ce fichier reste utile comme référence des cas site-specific qui diffèrent
+// de doomcheck (cookie banner localStorage, dataLayer GA4, etc.) et sert de
+// base pour les runs manuels. Il ne doit pas être supprimé — il doit juste
+// rester orphelin du côté CI.
 
 const tgd = getSiteConfig("taguardian-com")
 

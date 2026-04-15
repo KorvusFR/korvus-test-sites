@@ -51,7 +51,28 @@ test.describe("Test 8 — Web Performance", () => {
 
   test("layout shift produces cls_score > 0 and cls_largest_shift", async ({
     page,
+    browserName,
   }) => {
+    // Safari/WebKit ne reporte pas les entries `layout-shift` du
+    // PerformanceObserver de façon fiable dans les environnements de test
+    // synthétiques (support partiel selon version, souvent désactivé hors
+    // real user). Le snippet met proprement cls_score à null dans ce cas,
+    // ce qui est le comportement attendu. En prod Safari réel, le snippet
+    // capture les layout shifts quand Safari les fournit.
+    test.skip(
+      browserName === "webkit",
+      "WebKit layout-shift PerformanceObserver not reliable in test env",
+    )
+    // Firefox n'implémente pas le Layout Instability API (`PerformanceObserver`
+    // avec type `"layout-shift"`). Le snippet garde proprement cls_score à
+    // null — comportement attendu sur Firefox. En prod le snippet capture
+    // les layout shifts quand le navigateur les fournit (Chrome/Edge).
+    // Audit 2026-04-15 (B6b).
+    test.skip(
+      browserName === "firefox",
+      "Firefox does not implement Layout Instability API (layout-shift PerformanceObserver)",
+    )
+
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
     await injectSnippet(page, "doomcheck")
