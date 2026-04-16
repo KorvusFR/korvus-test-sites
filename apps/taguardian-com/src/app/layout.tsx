@@ -52,9 +52,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             __html: `window.gtag=function(){window.__korvusTagLog=window.__korvusTagLog||[];window.__korvusTagLog.push({tag:"ga4",args:[].slice.call(arguments),ts:Date.now()});};`,
           }}
         />
-        {/* INJECT_SCRIPTS */}
-        <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001012",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"https://app.korvus.fr/api/ingest",platform:"custom"};` }} />
-        <script src="https://app.korvus.fr/api/snippet/korvus.min.js" defer />
+        {/* INJECT_SCRIPTS — snippet Korvus installé via GTM, plus de tag en dur */}
       </head>
       <body className="min-h-screen flex flex-col">
         {/* Google Tag Manager (noscript) */}
