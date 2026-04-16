@@ -1,0 +1,81 @@
+name: Deploy test sites
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      taguardian: ${{ steps.filter.outputs.taguardian }}
+      athletedatahub: ${{ steps.filter.outputs.athletedatahub }}
+      doomcheck: ${{ steps.filter.outputs.doomcheck }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            taguardian:
+              - 'apps/taguardian-com/**'
+            athletedatahub:
+              - 'apps/athletedatahub/**'
+            doomcheck:
+              - 'apps/doomcheck/**'
+            infra:
+              - 'docker-compose.yml'
+              - 'Caddyfile'
+
+  deploy:
+    needs: detect-changes
+    if: >-
+      needs.detect-changes.outputs.taguardian == 'true' ||
+      needs.detect-changes.outputs.athletedatahub == 'true' ||
+      needs.detect-changes.outputs.doomcheck == 'true' ||
+      needs.detect-changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sync files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 57.129.133.114
+          username: debian
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "apps/,docker-compose.yml,Caddyfile"
+          target: /opt/korvus-test-sites
+          overwrite: true
+
+      - name: Rebuild and restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 57.129.133.114
+          username: debian
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd /opt/korvus-test-sites
+
+            APPS=""
+            if [ "${{ needs.detect-changes.outputs.taguardian }}" == "true" ] || [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
+              APPS="$APPS taguardian-com"
+            fi
+            if [ "${{ needs.detect-changes.outputs.athletedatahub }}" == "true" ] || [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
+              APPS="$APPS athletedatahub"
+            fi
+            if [ "${{ needs.detect-changes.outputs.doomcheck }}" == "true" ] || [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
+              APPS="$APPS doomcheck"
+            fi
+
+            if [ -n "$APPS" ]; then
+              sudo docker compose build $APPS
+              sudo docker compose up -d $APPS
+            fi
+
+            if [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
+              sudo cp Caddyfile /opt/caddy/Caddyfile
+              sudo docker exec caddy caddy reload --config /etc/caddy/Caddyfile || true
+            fi
