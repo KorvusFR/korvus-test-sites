@@ -299,11 +299,6 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
   test("Cookiebot : granted → denied via CookiebotCallback_OnLoad (révocation cross-tab)", async ({
     page,
   }) => {
-    // Setup : simule le cas où l'utilisateur est granted, ouvre la page,
-    // puis révoque son consent depuis un AUTRE onglet. Cookiebot rehydrate
-    // son cookie au prochain événement et fire `OnLoad` avec la nouvelle
-    // valeur — sans que `OnDecline` ne fire (parce que la révocation a
-    // eu lieu ailleurs). Seul `OnLoad` peut rattraper ce cas.
     await page.addInitScript(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
@@ -324,8 +319,6 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
 
     interceptor.clear()
 
-    // Simule révocation cross-tab : Cookiebot voit son cookie changé par un
-    // autre onglet et fire OnLoad à la rehydratation.
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
@@ -347,10 +340,6 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
   test("OneTrust : granted → denied via OnConsentChanged callback", async ({
     page,
   }) => {
-    // OneTrust expose `OnConsentChanged(cb)` — le snippet lui passe son
-    // handler, que OneTrust appelle quand l'utilisateur change de config.
-    // On capture ce handler via une closure exposée sur window pour pouvoir
-    // le déclencher depuis le test.
     await page.addInitScript(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
@@ -375,8 +364,6 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
 
     interceptor.clear()
 
-    // User uncheck C0002 (performance/analytics) — groupe retiré de la
-    // liste active, OneTrust fire OnConsentChanged callback.
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
@@ -397,9 +384,6 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
   test("Didomi : granted → denied via on('consent.changed') callback", async ({
     page,
   }) => {
-    // Didomi expose `on(event, cb)`. Le snippet register `consent.changed`
-    // avec un handler qui relit `getUserConsentStatusForPurpose('analytics')`.
-    // On simule en stockant le cb et en flipant le retour de la getter.
     await page.addInitScript(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
@@ -426,8 +410,6 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
 
     interceptor.clear()
 
-    // Flip Didomi state + fire le callback consent.changed enregistré par
-    // le snippet.
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
@@ -443,5 +425,550 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
       interceptor.getSession()?.consent_status,
       "Didomi consent.changed revocation must flip session.consent_status",
     ).toBe("denied")
+  })
+})
+
+// ============================================================================
+// Refonte consent — Nouveaux CMPs (Tier 2 + Tier 3 + Tier 4 + Polling)
+// ============================================================================
+//
+// Tests E2E pour les 13 nouveaux détecteurs ajoutés dans la refonte
+// [consent.ts](../../../platform/snippet/src/consent.ts).
+// Pattern identique aux tests B3/B7 : inject globals via addInitScript,
+// push purchase, vérifie session.consent_status et passage du consent gate.
+
+test.describe("Tier 2 — TCF v2 (IAB)", () => {
+  test("TCF v2 granted — purpose 1+5 consentis", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.__tcfapi = (cmd: string, _v: number, cb: (data: unknown, success: boolean) => void) => {
+        if (cmd === "getTCData") {
+          cb({
+            gdprApplies: true,
+            purpose: { consents: { 1: true, 2: true, 5: true, 7: true } },
+          }, true)
+        }
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TCF-GRANTED")
+
+    const session = interceptor.getSession()
+    expect(session?.consent_status).toBe("granted")
+    const purchase = interceptor.getEvents("purchase").find(
+      (e) => e.payload.transaction_id === "TX-TCF-GRANTED",
+    )
+    expect(purchase, "purchase should pass under TCF granted").toBeDefined()
+  })
+
+  test("TCF v2 denied — purpose 5 refusé", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.__tcfapi = (cmd: string, _v: number, cb: (data: unknown, success: boolean) => void) => {
+        if (cmd === "getTCData") {
+          cb({
+            gdprApplies: true,
+            purpose: { consents: { 1: true, 5: false } },
+          }, true)
+        }
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TCF-DENIED")
+
+    const session = interceptor.getSession()
+    expect(session?.consent_status).not.toBe("granted")
+    const purchase = interceptor.getEvents("purchase").find(
+      (e) => e.payload.transaction_id === "TX-TCF-DENIED",
+    )
+    expect(purchase, "purchase should be blocked under TCF denied").toBeUndefined()
+  })
+
+  test("TCF v2 révocation mid-session via addEventListener", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.__tcf_event_cb = null
+      w.__tcfapi = (cmd: string, _v: number, cb: (data: unknown, success: boolean) => void) => {
+        if (cmd === "getTCData") {
+          cb({
+            gdprApplies: true,
+            purpose: { consents: { 1: true, 5: true } },
+          }, true)
+        } else if (cmd === "addEventListener") {
+          w.__tcf_event_cb = cb
+        }
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TCF-BEFORE")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+
+    interceptor.clear()
+
+    // Revocation via TCF addEventListener
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      if (typeof w.__tcf_event_cb === "function") {
+        w.__tcf_event_cb(
+          {
+            gdprApplies: true,
+            eventStatus: "useractioncomplete",
+            purpose: { consents: { 1: true, 5: false } },
+          },
+          true,
+        )
+      }
+    })
+    await page.waitForTimeout(200)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TCF-AFTER")
+    expect(
+      interceptor.getSession()?.consent_status,
+      "TCF revocation must flip consent_status",
+    ).toBe("denied")
+  })
+})
+
+test.describe("Tier 2 — Google Consent Mode v2", () => {
+  test("Google Consent Mode granted via dataLayer consent entry", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.dataLayer = [
+        ["consent", "default", { analytics_storage: "denied", ad_storage: "denied" }],
+        ["consent", "update", { analytics_storage: "granted" }],
+      ]
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-GCM-GRANTED")
+
+    const session = interceptor.getSession()
+    expect(session?.consent_status).toBe("granted")
+    const purchase = interceptor.getEvents("purchase").find(
+      (e) => e.payload.transaction_id === "TX-GCM-GRANTED",
+    )
+    expect(purchase, "purchase should pass under GCM granted").toBeDefined()
+  })
+
+  test("Google Consent Mode denied — analytics_storage: 'denied'", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.dataLayer = [
+        ["consent", "default", { analytics_storage: "denied" }],
+      ]
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-GCM-DENIED")
+
+    const session = interceptor.getSession()
+    expect(session?.consent_status).not.toBe("granted")
+  })
+
+  test("Google Consent Mode révocation via dataLayer.push", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.dataLayer = [
+        ["consent", "update", { analytics_storage: "granted" }],
+      ]
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-GCM-REVOKE-BEFORE")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+
+    interceptor.clear()
+
+    // Revocation via dataLayer.push
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.dataLayer.push(["consent", "update", { analytics_storage: "denied" }])
+    })
+    await page.waitForTimeout(200)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-GCM-REVOKE-AFTER")
+    expect(
+      interceptor.getSession()?.consent_status,
+      "GCM revocation must flip consent_status",
+    ).toBe("denied")
+  })
+})
+
+test.describe("Tier 3 — Tarteaucitron", () => {
+  test("Tarteaucitron granted — service analytics à true", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.tarteaucitron = {
+        state: { "google-analytics": true, marketing: false },
+        job: ["google-analytics"],
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TAC-GRANTED")
+
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+    expect(
+      interceptor.getEvents("purchase").find(
+        (e) => e.payload.transaction_id === "TX-TAC-GRANTED",
+      ),
+    ).toBeDefined()
+  })
+
+  test("Tarteaucitron denied — service analytics à false", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.tarteaucitron = {
+        state: { "google-analytics": false },
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TAC-DENIED")
+    expect(interceptor.getSession()?.consent_status).not.toBe("granted")
+  })
+
+  test("Tarteaucitron révocation via tac.close_alert", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.tarteaucitron = {
+        state: { analytics: true },
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TAC-REVOKE-BEFORE")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+
+    interceptor.clear()
+
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.tarteaucitron.state.analytics = false
+      document.dispatchEvent(new Event("tac.close_alert"))
+    })
+    await page.waitForTimeout(200)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-TAC-REVOKE-AFTER")
+    expect(interceptor.getSession()?.consent_status).toBe("denied")
+  })
+})
+
+test.describe("Tier 3 — Usercentrics", () => {
+  test("Usercentrics granted — analytics service consenti", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.UC_UI = {
+        getServicesBaseInfo: () => [
+          { name: "Google Analytics", categorySlug: "analytics", consent: { status: true } },
+          { name: "Facebook Pixel", categorySlug: "marketing", consent: { status: false } },
+        ],
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-UC-GRANTED")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+  })
+
+  test("Usercentrics denied — analytics service refusé", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.UC_UI = {
+        getServicesBaseInfo: () => [
+          { name: "Google Analytics", categorySlug: "analytics", consent: { status: false } },
+        ],
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-UC-DENIED")
+    expect(interceptor.getSession()?.consent_status).not.toBe("granted")
+  })
+
+  test("Usercentrics révocation via UC_UI_CMP_EVENT DENY_ALL", async ({ page }) => {
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.UC_UI = {
+        getServicesBaseInfo: () => [
+          { name: "Google Analytics", categorySlug: "analytics", consent: { status: true } },
+        ],
+      }
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-UC-REVOKE-BEFORE")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+
+    interceptor.clear()
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("UC_UI_CMP_EVENT", {
+        detail: { type: "DENY_ALL" },
+      }))
+    })
+    await page.waitForTimeout(200)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-UC-REVOKE-AFTER")
+    expect(interceptor.getSession()?.consent_status).toBe("denied")
+  })
+})
+
+test.describe("Tier 3 — CookieYes (cookie-based)", () => {
+  test("CookieYes granted via cookie analytics:yes", async ({ page, context }) => {
+    await context.addCookies([{
+      name: "cookieyes-consent",
+      value: "consent:yes,analytics:yes,functional:yes",
+      domain: "localhost",
+      path: "/",
+    }])
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-CY-GRANTED")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+  })
+
+  test("CookieYes denied via cookie analytics:no", async ({ page, context }) => {
+    await context.addCookies([{
+      name: "cookieyes-consent",
+      value: "consent:yes,analytics:no,functional:yes",
+      domain: "localhost",
+      path: "/",
+    }])
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-CY-DENIED")
+    expect(interceptor.getSession()?.consent_status).not.toBe("granted")
+  })
+
+  test("CookieYes révocation via cookieyes_consent_update event", async ({ page, context }) => {
+    await context.addCookies([{
+      name: "cookieyes-consent",
+      value: "consent:yes,analytics:yes",
+      domain: "localhost",
+      path: "/",
+    }])
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-CY-REVOKE-BEFORE")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+
+    interceptor.clear()
+
+    // Update cookie and fire event
+    await page.evaluate(() => {
+      document.cookie = "cookieyes-consent=consent:yes,analytics:no; path=/"
+      document.dispatchEvent(new Event("cookieyes_consent_update"))
+    })
+    await page.waitForTimeout(200)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-CY-REVOKE-AFTER")
+    expect(interceptor.getSession()?.consent_status).toBe("denied")
+  })
+})
+
+test.describe("Tier 3 — Complianz (cookie-based)", () => {
+  test("Complianz granted via cmplz_statistics=allow", async ({ page, context }) => {
+    await context.addCookies([{
+      name: "cmplz_statistics",
+      value: "allow",
+      domain: "localhost",
+      path: "/",
+    }])
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-CMPLZ-GRANTED")
+    expect(interceptor.getSession()?.consent_status).toBe("granted")
+  })
+
+  test("Complianz denied via cmplz_statistics=deny", async ({ page, context }) => {
+    await context.addCookies([{
+      name: "cmplz_statistics",
+      value: "deny",
+      domain: "localhost",
+      path: "/",
+    }])
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    await pushPurchaseAndFlush(page, interceptor, "TX-CMPLZ-DENIED")
+    expect(interceptor.getSession()?.consent_status).not.toBe("granted")
+  })
+})
+
+// ============================================================================
+// Polling — CMP qui charge tard
+// ============================================================================
+
+test.describe("Polling — CMP tardif", () => {
+  test("CMP injecté 2s après boot → polling détecte et consent_status correct", async ({
+    page,
+  }) => {
+    // No CMP at boot — snippet starts polling
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    // Verify initial state is unknown
+    await interceptor.triggerFlush()
+    const initialSession = interceptor.getSession()
+    expect(
+      initialSession?.consent_status,
+      "Initial consent should be unknown (no CMP at boot)",
+    ).toBe("unknown")
+
+    interceptor.clear()
+
+    // Inject CMP globals 2s after boot — polling should pick this up
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w._axcb = []
+      w.axeptio_settings = { cookies_consent: true }
+    })
+
+    // Wait for polling to detect (polls every 500ms)
+    await page.waitForTimeout(1500)
+
+    // Push purchase and flush
+    await pushPurchaseAndFlush(page, interceptor, "TX-POLL-LATE")
+
+    const session = interceptor.getSession()
+    expect(
+      session?.consent_status,
+      "Polling should have detected late CMP → granted",
+    ).toBe("granted")
+
+    const purchase = interceptor.getEvents("purchase").find(
+      (e) => e.payload.transaction_id === "TX-POLL-LATE",
+    )
+    expect(
+      purchase,
+      "purchase pushed after polling detection should pass consent gate",
+    ).toBeDefined()
+  })
+
+  test("Aucun CMP → consent reste unknown après timeout polling", async ({
+    page,
+  }) => {
+    // No CMP at all — polling should stop after 10s, consent stays unknown
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+    await page.goto("/")
+
+    // Wait for polling to finish (10s max)
+    await page.waitForTimeout(12000)
+
+    await interceptor.triggerFlush()
+    const session = interceptor.getSession()
+    expect(
+      session?.consent_status,
+      "No CMP detected → consent should stay unknown",
+    ).toBe("unknown")
   })
 })
