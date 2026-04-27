@@ -177,12 +177,7 @@ async function runSpaParcours(page: Page, cfg: LocaleConfig): Promise<void> {
 // Test 1 — SPA parcours, consent granted (pageviews + page_type)
 // ---------------------------------------------------------------------------
 
-// FIXME app race: Vue onBeforeUnmount removes the PDP JSON-LD AFTER the
-// snippet pushState wrapper has emitted the next pageview, so page_type
-// leaks as "pdp" on cart/checkout/thanks. Fix in app (remove JSON-LD
-// before pushState, e.g. via router.beforeEach) or in snippet (defer
-// page_type detection one tick).
-test.fixme("SPA parcours (consent granted) — 6 pageviews distincts + page_type multilingue", async ({
+test("SPA parcours (consent granted) — 6 pageviews distincts + page_type multilingue", async ({
   page,
 }) => {
   test.setTimeout(60_000)
@@ -269,9 +264,7 @@ test.fixme("SPA parcours (consent granted) — 6 pageviews distincts + page_type
 // Test 2 — SPA parcours, consent denied (purchase bloqué)
 // ---------------------------------------------------------------------------
 
-// FIXME app race: same root cause as test 1 above (Vue onBeforeUnmount vs
-// snippet pushState wrapper -> page_type=pdp leak across SPA navs).
-test.fixme("SPA parcours (consent denied) — purchase bloqué, 6 pageviews exempts conservés", async ({
+test("SPA parcours (consent denied) — purchase bloqué, 6 pageviews exempts conservés", async ({
   page,
 }) => {
   test.setTimeout(60_000)

@@ -271,9 +271,7 @@ test("pushState SPA → 2 pageviews avec ids distincts + navigation_type", async
 // Test 2 — listeners non dupliqués après 5 navigations SPA
 // ---------------------------------------------------------------------------
 
-// FIXME snippet leak: visibilitychange listener re-attached on each
-// pushState instead of being a singleton global. Fix in initSpaCollectors.
-test.fixme("5 navigations SPA → 0 listener orphelin sur document/window", async ({
+test("5 navigations SPA → 0 listener orphelin sur document/window", async ({
   page,
 }) => {
   skipIfNotFlrFr()
@@ -364,51 +362,9 @@ test.fixme("5 navigations SPA → 0 listener orphelin sur document/window", asyn
   expect(pageviews.length, "≥5 pageviews attendus après 5 SPA navs").toBeGreaterThanOrEqual(5)
 })
 
-// ---------------------------------------------------------------------------
-// Test 3 — timers SPA (cascade produit retry) clearés sur navigation
-// ---------------------------------------------------------------------------
-//
-// Le pageview collector arme 2 setTimeout(2000) + setTimeout(5000) sur
-// chaque PDP pour retry la cascade produit quand la détection initiale
-// retombe sur `url_slug` (hydratation tardive SPA). Ces IDs sont
-// maintenant trackés dans `pendingRetryTimers` (pageview.ts) et clearés
-// au début de chaque `emitPageview()` — donc sur chaque SPA navigation.
-// FIXME: .fixme marker forgotten by author (cf. file header lines 17-21
-// explicit P1 bug note).
-test.fixme(
-  "timers SPA cascade produit clearés sur navigation",
-  async ({ page }) => {
-    skipIfNotFlrFr()
-    test.setTimeout(30_000)
-
-    await installSpies(page)
-    const { interceptor: _interceptor } = await setupSpec(page)
-
-    // Boot direct sur PDP — le collector arme les 2 setTimeout retry cascade
-    // produit dès que `payload.product_id_source === "url_slug"` (cf.
-    // pageview.ts:930). En SPA Nuxt avec hydratation tardive, c'est le cas
-    // 100% du temps au boot.
-    await page.goto(FLORAL_FR.productPath)
-    await page.waitForTimeout(500)
-
-    const stateAfterBoot = await readSpyState(page)
-    expect(
-      stateAfterBoot.timersArmed.length,
-      "PDP doit armer ≥2 setTimeout (cascade retry 2000ms + 5000ms)",
-    ).toBeGreaterThanOrEqual(2)
-
-    // Navigate AVANT que les timers fire (T+500ms vs timer 2000ms / 5000ms).
-    await page.evaluate(() => {
-      window.history.pushState({}, "", "/panier")
-    })
-    await page.waitForTimeout(300)
-
-    const stateAfterNav = await readSpyState(page)
-
-    // Chaque timer armé doit avoir été cleared sur la navigation.
-    expect(
-      stateAfterNav.timersCleared.length,
-      `tous les timers SPA armés (${stateAfterBoot.timersArmed.length}) doivent être clearés sur nav`,
-    ).toBeGreaterThanOrEqual(stateAfterBoot.timersArmed.length)
-  },
-)
+// Le test "timers SPA cascade produit clearés sur navigation" qui vivait
+// ici a été supprimé : son assertion baseline (≥2 setTimeout armés au boot
+// PDP) reposait sur `product_id_source === "url_slug"`, jamais atteint sur
+// floral-nuxt qui injecte le JSON-LD synchrone via Nuxt SSR. Le clear timer
+// est désormais validé en unit déterministe :
+// platform/tests/unit/snippet/pageview-spa.test.ts (test 9).
