@@ -76,7 +76,7 @@ test.describe("Test 11 — search_performed", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
       w._axcb = []
-      w.axeptio_settings = { cookies_consent: true }
+      w.axeptio_settings = { cookies: { google_analytics: true } }
     })
 
     const interceptor = new IngestInterceptor(page)
@@ -261,7 +261,7 @@ test.describe("Test 14 — datalayer_validation", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
       w._axcb = []
-      w.axeptio_settings = { cookies_consent: true }
+      w.axeptio_settings = { cookies: { google_analytics: true } }
     })
 
     const interceptor = new IngestInterceptor(page)
@@ -320,7 +320,7 @@ test.describe("Test 14 — datalayer_validation", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
       w._axcb = []
-      w.axeptio_settings = { cookies_consent: true }
+      w.axeptio_settings = { cookies: { google_analytics: true } }
     })
 
     const interceptor = new IngestInterceptor(page)
@@ -441,7 +441,7 @@ test.describe("Test 15 — pageviews.product_* columns", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
       w._axcb = []
-      w.axeptio_settings = { cookies_consent: true }
+      w.axeptio_settings = { cookies: { google_analytics: true } }
     })
 
     const interceptor = new IngestInterceptor(page)

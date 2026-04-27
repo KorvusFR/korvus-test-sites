@@ -23,7 +23,7 @@ async function simulateAxeptio(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any
     w._axcb = []
-    w.axeptio_settings = { cookies_consent: consent }
+    w.axeptio_settings = { cookies: { google_analytics: consent } }
   }, granted)
 }
 
@@ -115,6 +115,9 @@ test.describe("ADH — pageviews.product_* columns", () => {
     expect(pv!.page_type).toBe("pdp")
     expect(pv!.product_id).toBeTruthy()
     expect(pv!.product_name).toBeTruthy()
+    // Cascade gagnante : JSON-LD complet sur les PDP ADH.
+    expect(pv!.product_id_source).toBe("jsonld")
+    expect(pv!.product_name_source).toBe("jsonld")
     expect(pv!.product_price_visible ?? null).toBeNull()
     expect(pv!.product_currency ?? null).toBeNull()
   })
@@ -165,6 +168,8 @@ test.describe("ADH — pageviews.product_available (OOS)", () => {
     expect(pv, "pageview for push-up-handles-rotating should be captured").toBeDefined()
     expect(pv!.product_id).toBe("28")
     expect(pv!.product_available).toBe(false)
+    // Cascade gagnante : JSON-LD `availability: OutOfStock` sur les PDP ADH.
+    expect(pv!.product_available_source).toBe("jsonld")
   })
 
   test("in-stock product → product_available = true", async ({ page }) => {

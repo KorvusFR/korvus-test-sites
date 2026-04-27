@@ -928,7 +928,7 @@ test.describe("Polling — CMP tardif", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
       w._axcb = []
-      w.axeptio_settings = { cookies_consent: true }
+      w.axeptio_settings = { cookies: { google_analytics: true } }
     })
 
     // Wait for polling to detect (polls every 500ms)

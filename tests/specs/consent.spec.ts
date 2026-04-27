@@ -13,7 +13,7 @@ async function simulateAxeptio(page: Page, granted: boolean): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any
     w._axcb = []
-    w.axeptio_settings = { cookies_consent: consent }
+    w.axeptio_settings = { cookies: { google_analytics: consent } }
   }, granted)
 }
 
@@ -93,12 +93,11 @@ test.describe("Test 16 — Mode exempt (denied)", () => {
 
     await interceptor.triggerFlush()
 
-    // Consent-required events should NOT be present
-    expect(
-      interceptor.getEvents("product_seen").length,
-      "product_seen should NOT be sent when consent is denied",
-    ).toBe(0)
-
+    // Consent-required events should NOT be present.
+    // Note V2 — `product_seen` est supprimé (remplacé par les colonnes
+    // `pageviews.product_*`). Le check « pas de price/currency PDP sans
+    // consent » est couvert par ecommerce.spec.ts Test 15, on ne le
+    // duplique pas ici.
     expect(
       interceptor.getEvents("datalayer_validation").length,
       "datalayer_validation should NOT be sent when consent is denied",
@@ -369,7 +368,7 @@ test.describe("Phase 7 B1 — Consent mid-session (CMP tardif)", () => {
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
-      w.axeptio_settings = { cookies_consent: true }
+      w.axeptio_settings = { cookies: { google_analytics: true } }
       // Simule Axeptio qui fire le callback cookies:complete.
       // Le snippet a fait `_axcb.push(sdk => sdk.on("cookies:complete", cb))`
       // pendant detectAxeptio, donc _axcb[0] est ce pusher. On lui passe un

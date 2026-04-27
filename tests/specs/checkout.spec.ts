@@ -27,7 +27,7 @@ async function simulateAxeptio(page: Page, granted: boolean): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any
     w._axcb = []
-    w.axeptio_settings = { cookies_consent: consent }
+    w.axeptio_settings = { cookies: { google_analytics: consent } }
   }, granted)
 }
 
