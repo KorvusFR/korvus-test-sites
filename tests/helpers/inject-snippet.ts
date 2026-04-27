@@ -3,24 +3,11 @@ import fs from "node:fs"
 import path from "node:path"
 
 // --- Config types (subset of KorvusConfig) ---
-//
-// Refactor "zero config client" : platform / pageTypeRules /
-// datalayerEventMapping / domSelectors sont strippes par readConfig() cote
-// snippet (cf. platform/tests/unit/snippet/config.test.ts). Le helper continue
-// de les accepter pour la retrocompat des specs qui les passaient encore — ils
-// sont silencieusement ignores au boot. Nouveaux specs : ne PAS les passer.
 export interface SnippetConfig {
   websiteId: string
   apiKey: string
   endpoint: string
-  platform?: string
   errorSelectors?: string[]
-  /** @deprecated strippe par readConfig (refactor zero config client). */
-  pageTypeRules?: Record<string, { url_contains?: string; or_selector?: string }>
-  /** @deprecated strippe par readConfig (refactor zero config client). */
-  datalayerEventMapping?: Record<string, string>
-  /** @deprecated strippe par readConfig (refactor zero config client). */
-  domSelectors?: Record<string, unknown>
 }
 
 // --- Default configs per test site ---
@@ -30,19 +17,16 @@ const SITE_DEFAULTS: Record<string, SnippetConfig> = {
     websiteId: "00000000-0000-4000-a000-000000001010",
     apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
     endpoint: "/api/ingest",
-    platform: "custom",
   },
   "taguardian-com": {
     websiteId: "00000000-0000-4000-a000-000000001012",
     apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
     endpoint: "/api/ingest",
-    platform: "custom",
   },
   doomcheck: {
     websiteId: "00000000-0000-4000-a000-000000001013",
     apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
     endpoint: "/api/ingest",
-    platform: "custom",
   },
 }
 
@@ -102,7 +86,6 @@ export async function injectSnippet(
       websiteId: "00000000-0000-4000-a000-000000000000",
       apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
       endpoint: "/api/ingest",
-      platform: "custom",
       ...siteOrConfig,
     }
   }

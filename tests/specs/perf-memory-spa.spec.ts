@@ -149,7 +149,6 @@ test.describe("perf-memory-spa", () => {
       apiKey:
         "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
       endpoint: "/api/ingest",
-      platform: "custom",
     })
 
     // Boot frais sur home, attendre le boot snippet (post-load + setTimeout(0)).

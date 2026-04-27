@@ -103,27 +103,16 @@ async function setupSpec(page: Page, locale: LocaleKey, granted: boolean) {
   const interceptor = new IngestInterceptor(page)
   await interceptor.attach()
   await simulateAxeptio(page, granted)
-  // Override des defaults SITE_DEFAULTS avec :
-  //  - domSelectors.add_to_cart : findAtcButton() n'a PAS de fallback
-  //    générique pour platform="custom" (cf. snippet/src/collectors/product-info.ts:320).
-  //    Sans ce config override, ATC tracking est silencieusement broken sur tout
-  //    client custom-platform — ça doit vivre dans website.dom_selectors en prod.
-  //
-  // Note : pas besoin de pageTypeRules. Toutes les routes Interflora locales
-  // (/panier, /cesta, /carrello, /checkout, /pago, /pagamento, /merci, /grazie,
-  // /gracias) sont couvertes par la cascade URL multilingue dans
-  // lib/patterns/page-type.ts, et le garde-fou EXPLICIT_NON_PRODUCT_PAGE_TYPES
-  // ajouté en étape 0 de detectPageTypeFast empêche le JSON-LD Product résiduel
-  // (fuite Vue Router pushState avant onBeforeUnmount) de gagner en SPA.
+  // Le bouton ATC `button.add-to-cart` est matche par HEURISTIC_ATC_SELECTORS
+  // (lib/patterns/atc-selectors.ts) — aucune config snippet necessaire.
+  // Cascade page_type URL multilingue + garde-fou EXPLICIT_NON_PRODUCT_PAGE_TYPES
+  // (lib/patterns/page-type.ts) couvrent les routes Interflora locales sans
+  // pageTypeRules.
   const baseConfig = {
     websiteId: LOCALES[locale].websiteId,
     apiKey:
       "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
     endpoint: "/api/ingest",
-    platform: "custom",
-    domSelectors: {
-      add_to_cart: "button.add-to-cart",
-    },
   }
   await injectSnippet(page, baseConfig)
   return { cfg, interceptor }

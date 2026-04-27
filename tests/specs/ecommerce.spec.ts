@@ -138,10 +138,7 @@ test.describe("Test 12 — pageviews.product_available (OOS)", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, doomcheck)
 
     // glitchbuds-ultra is out of stock with OutOfStock in JSON-LD
     // Note: 2800ms wait parce que la cascade product est en scheduleIdleTask
@@ -163,10 +160,7 @@ test.describe("Test 12 — pageviews.product_available (OOS)", () => {
   test("in-stock product → product_available = true", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/products/novapro-x12")
     await page.waitForTimeout(2000)

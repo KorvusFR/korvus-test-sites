@@ -165,10 +165,7 @@ test.describe("ADH — pageviews.product_available (OOS)", () => {
   test("in-stock product → product_available = true", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, adh)
 
     await page.goto("/products/pro-training-tshirt-black")
     await page.waitForTimeout(2000)

@@ -99,10 +99,7 @@ test.describe("TGD — out_of_stock_viewed", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...tgd,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, tgd)
 
     await page.goto("/products/crowdstrike-falcon-pro-endpoint")
     await page.waitForTimeout(2000)

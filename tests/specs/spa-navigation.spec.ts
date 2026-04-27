@@ -51,7 +51,6 @@ async function setupSpec(page: Page): Promise<{ interceptor: IngestInterceptor }
     apiKey:
       "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
     endpoint: "/api/ingest",
-    platform: "custom",
   })
   return { interceptor }
 }

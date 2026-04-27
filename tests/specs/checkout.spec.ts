@@ -46,13 +46,7 @@ test.describe("V2 — add_to_cart_succeeded", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: {
-        add_to_cart: "button.add-to-cart",
-        cart_count: "[data-cart-count]",
-      },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/pdp")
     await waitBoot(page)
@@ -92,10 +86,7 @@ test.describe("V2 — add_to_cart_succeeded", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.add-to-cart" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/pdp")
     await waitBoot(page)
@@ -123,10 +114,7 @@ test.describe("V2 — add_to_cart_succeeded", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.add-to-cart" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/pdp")
     await waitBoot(page)

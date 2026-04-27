@@ -27,10 +27,7 @@ test.describe("Test 16 — Mode exempt (denied)", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, doomcheck)
 
     // Navigate to PDP (JSON-LD auto-detects as pdp)
     await page.goto("/products/novapro-x12")
