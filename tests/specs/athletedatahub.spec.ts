@@ -264,13 +264,11 @@ test.describe("ADH — search_performed", () => {
     // search_performed.query est consent-gated. Ce test valide la partie
     // exempt (results_count). La validation de query avec consent granted
     // est couverte dans ecommerce.spec.ts Test 11.
+    // Page type "search" est auto-detecte via ?q= dans l URL ; le compteur
+    // est lu via la classe wrapper auto-reconnue ".search-results-count".
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      pageTypeRules: PAGE_TYPE_RULES,
-      domSelectors: { search_results_count: "p.text-sm.text-gray-500.mt-1" },
-    })
+    await injectSnippet(page, adh)
 
     await page.goto("/search?q=protein")
     await page.waitForTimeout(2000)
@@ -285,11 +283,7 @@ test.describe("ADH — search_performed", () => {
   test("search zero results → results_count = 0", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      pageTypeRules: PAGE_TYPE_RULES,
-      domSelectors: { search_results_count: "p.text-sm.text-gray-500.mt-1" },
-    })
+    await injectSnippet(page, adh)
 
     await page.goto("/search?q=xyzzznotfound")
     await page.waitForTimeout(2000)

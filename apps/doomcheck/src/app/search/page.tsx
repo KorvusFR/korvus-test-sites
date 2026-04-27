@@ -29,7 +29,7 @@ export default async function SearchPage({
           {query ? `Results for "${query}"` : "Search"}
         </h1>
         {query && (
-          <p className="text-doom-400 text-sm">
+          <p className="search-results-count text-doom-400 text-sm">
             {results.length} items found
           </p>
         )}

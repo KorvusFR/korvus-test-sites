@@ -39,7 +39,7 @@ export default async function SearchPage({
           {query ? `${t("searchResultsFor")} "${query}"` : t("searchResults")}
         </h1>
         {query && (
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="search-results-count text-sm text-gray-500 mt-1">
             {results.length} {t("products")}
           </p>
         )}

@@ -61,6 +61,7 @@ export function AddToCartButton({ product, selectedVariant, selectedColor }: Pro
       size="lg"
       className="w-full gap-2"
       onClick={handleAdd}
+      data-add-to-cart
     >
       {added ? (
         <>

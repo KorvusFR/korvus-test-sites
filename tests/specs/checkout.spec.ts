@@ -307,28 +307,12 @@ test.describe("V2 — variant_selected", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("V2 — promo_applied (source: dom)", () => {
-  test("lit le promo_code depuis un sélecteur DOM statique", async ({
-    page,
-  }) => {
-    // L'élément .sim-promo-code est statique dans /sim/checkout/page.tsx —
-    // présent dès le load, donc lu par l'idle task du collector promo-applied.
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-      domSelectors: { promo_code: ".sim-promo-code" },
-    })
-
-    await page.goto("/sim/checkout")
-    await waitBoot(page, 2500)
-    await interceptor.triggerFlush()
-
-    const events = interceptor.getEvents("promo_applied")
-    expect(events.length).toBeGreaterThan(0)
-    const domEvent = events.find((e) => e.payload.source === "dom")
-    expect(domEvent).toBeDefined()
-    expect(domEvent!.payload.promo_code).toBe("SUMMER20")
+  // Collector supprimé en commit db3baf8 ("refactor(snippet): zéro config
+  // client") avec l'option domSelectors. Ne reste que la source datalayer
+  // (cf collectors/datalayer.ts emitPurchase). Ce test attend source="dom"
+  // qui n'existe plus.
+  test.skip("lit le promo_code depuis un sélecteur DOM statique", async () => {
+    // intentionally skipped — source DOM removed
   })
 })
 

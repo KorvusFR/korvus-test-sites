@@ -106,15 +106,13 @@ test.describe("Worker B4.4 — search_performed (zero results)", () => {
   }) => {
     // Doomcheck a une page /search qui rend les résultats. Une query
     // qui ne matche aucun produit → results_count=0.
+    // Page type "search" est auto-detecte via ?q= dans l URL ; le compteur
+    // est lu via la classe wrapper auto-reconnue ".search-results-count".
     await simulateAxeptio(page, true)
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: { search: { url_contains: "/search" } },
-      domSelectors: { search_results_count: "div.mb-8 > p.text-sm" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/search?q=xyznonexistentquery")
     await page.waitForTimeout(2000)
@@ -139,11 +137,7 @@ test.describe("Worker B4.4 — search_performed (zero results)", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: { search: { url_contains: "/search" } },
-      domSelectors: { search_results_count: "div.mb-8 > p.text-sm" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/search?q=xyznonexistentquery")
     await page.waitForTimeout(2000)

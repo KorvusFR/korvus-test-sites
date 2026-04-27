@@ -42,6 +42,31 @@ async function pushPurchaseAndFlush(
   await interceptor.triggerFlush()
 }
 
+// Helper revocation : pousse un js_error (event exempt, jamais consent-gated)
+// pour forcer un flush apres une revocation. On ne peut pas utiliser
+// pushPurchaseAndFlush car post-revoke le datalayer collector est detruit
+// et le buffer est purge des events consent-gated → pas d'event a flusher
+// → pas de batch → interceptor.getSession() retourne undefined. js_error
+// est exempt CNIL et passe meme apres revoke, ce qui force un POST avec
+// la session a jour (consent_status = "denied").
+async function pushExemptErrorAndFlush(
+  page: Page,
+  interceptor: IngestInterceptor,
+  marker: string,
+): Promise<void> {
+  await page.evaluate((msg: string) => {
+    window.dispatchEvent(new ErrorEvent("error", {
+      message: msg,
+      filename: "post-revoke.js",
+      lineno: 1,
+      colno: 1,
+      error: new Error(msg),
+    }))
+  }, marker)
+  await page.waitForTimeout(400)
+  await interceptor.triggerFlush()
+}
+
 test.describe("Phase 7 B3 — Multi-CMP detection smoke", () => {
   test("Didomi — granted via getUserConsentStatusForPurpose('analytics') = true", async ({
     page,
@@ -54,6 +79,13 @@ test.describe("Phase 7 B3 — Multi-CMP detection smoke", () => {
         // on() ne fait rien pour ce smoke — on teste juste la détection
         // initiale statique.
         on: (_event: string, _cb: () => void) => undefined,
+        // Audit pré-prod 2026-04-25 (Bug C) — detectDidomi exige les APIs
+        // notice + isConsentRequired pour distinguer pré-interaction de
+        // refus explicite (anti-false-grant CNIL). Mock ici un user qui a
+        // déjà interagi : isConsentRequired=true (consent applicable) +
+        // notice fermée → on lit getUserConsentStatusForPurpose=true → grant.
+        isConsentRequired: () => true,
+        notice: { isVisible: () => false },
       }
     })
 
@@ -287,7 +319,7 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
     await page.waitForTimeout(200)
 
     // --- Phase 2 : post-révocation ---
-    await pushPurchaseAndFlush(page, interceptor, "TX-CB-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-CB")
 
     session = interceptor.getSession()
     expect(
@@ -330,7 +362,7 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-CB-ONLOAD-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-CB-ONLOAD")
     expect(
       interceptor.getSession()?.consent_status,
       "OnLoad cross-tab revocation must flip session.consent_status",
@@ -374,7 +406,7 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-OT-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-OT")
     expect(
       interceptor.getSession()?.consent_status,
       "OneTrust OnConsentChanged revocation must flip session.consent_status",
@@ -396,6 +428,13 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
             w.__didomi.changeCb = cb
           }
         },
+        // Audit pré-prod 2026-04-25 (Bug C) — detectDidomi exige les APIs
+        // notice + isConsentRequired pour distinguer pré-interaction de
+        // refus explicite (anti-false-grant CNIL). Mock ici un user qui a
+        // déjà interagi : isConsentRequired=true + notice fermée → on lit
+        // getUserConsentStatusForPurpose pour la décision finale.
+        isConsentRequired: () => true,
+        notice: { isVisible: () => false },
       }
     })
 
@@ -420,7 +459,7 @@ test.describe("Phase B7 — CMP mid-session revocation (hors Axeptio)", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-DIDOMI-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-DIDOMI")
     expect(
       interceptor.getSession()?.consent_status,
       "Didomi consent.changed revocation must flip session.consent_status",
@@ -543,7 +582,7 @@ test.describe("Tier 2 — TCF v2 (IAB)", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-TCF-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-TCF")
     expect(
       interceptor.getSession()?.consent_status,
       "TCF revocation must flip consent_status",
@@ -627,7 +666,7 @@ test.describe("Tier 2 — Google Consent Mode v2", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-GCM-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-GCM")
     expect(
       interceptor.getSession()?.consent_status,
       "GCM revocation must flip consent_status",
@@ -709,7 +748,7 @@ test.describe("Tier 3 — Tarteaucitron", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-TAC-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-TAC")
     expect(interceptor.getSession()?.consent_status).toBe("denied")
   })
 })
@@ -787,7 +826,7 @@ test.describe("Tier 3 — Usercentrics", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-UC-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-UC")
     expect(interceptor.getSession()?.consent_status).toBe("denied")
   })
 })
@@ -855,7 +894,7 @@ test.describe("Tier 3 — CookieYes (cookie-based)", () => {
     })
     await page.waitForTimeout(200)
 
-    await pushPurchaseAndFlush(page, interceptor, "TX-CY-REVOKE-AFTER")
+    await pushExemptErrorAndFlush(page, interceptor, "post-revoke-CY")
     expect(interceptor.getSession()?.consent_status).toBe("denied")
   })
 })

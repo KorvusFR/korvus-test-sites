@@ -14,10 +14,7 @@ test.describe("Test 10 — add_to_cart_attempt", () => {
   test("captures ATC click with product_id from JSON-LD", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/products/novapro-x12")
     await page.waitForTimeout(1500)
@@ -44,10 +41,7 @@ test.describe("Test 10 — add_to_cart_attempt", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/products/novapro-x12")
     await page.waitForTimeout(1500)
@@ -81,10 +75,7 @@ test.describe("Test 11 — search_performed", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: { search: { url_contains: "/search" } },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/search?q=NovaPro")
     await page.waitForTimeout(2000)
@@ -104,11 +95,7 @@ test.describe("Test 11 — search_performed", () => {
   test("captures results_count with custom domSelector", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: { search: { url_contains: "/search" } },
-      domSelectors: { search_results_count: "div.mb-8 > p.text-sm" },
-    })
+    await injectSnippet(page, doomcheck)
 
     // Search with results
     await page.goto("/search?q=NovaPro")
@@ -124,11 +111,7 @@ test.describe("Test 11 — search_performed", () => {
   test("results_count is 0 for no-match search", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: { search: { url_contains: "/search" } },
-      domSelectors: { search_results_count: "div.mb-8 > p.text-sm" },
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/search?q=xyznonexistent")
     await page.waitForTimeout(2000)
