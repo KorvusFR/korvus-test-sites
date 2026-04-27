@@ -1,0 +1,158 @@
+name: Snippet E2E (mocked)
+
+# Audit 2026-04 — Vague 2 / Worker B1.
+# Runs the ~13 Playwright specs in tests/specs/ against doomcheck +
+# athletedatahub + floral-nuxt with a freshly built korvus.min.js.
+#
+# Repo layout:
+#   - this repo (korvus-test-sites) is checked out at path: test_website
+#   - korvusadmin/korvus is checked out at path: platform via PAT, so the
+#     test helpers can read platform/snippet/dist/korvus.min.js after build.
+# This reproduces the dual-repo layout that tests/global-setup.ts and
+# tests/helpers/inject-snippet.ts assume (they lookup
+# ../platform/snippet/dist/korvus.min.js relative to the tests dir).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tests/**"
+      - "apps/athletedatahub/**"
+      - "apps/doomcheck/**"
+      - "apps/floral-nuxt/**"
+      - ".github/workflows/snippet-e2e-mocked.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tests/**"
+      - "apps/athletedatahub/**"
+      - "apps/doomcheck/**"
+      - "apps/floral-nuxt/**"
+      - ".github/workflows/snippet-e2e-mocked.yml"
+  repository_dispatch:
+    types: [snippet-changed]
+  workflow_dispatch:
+    inputs:
+      platform_ref:
+        description: "Ref/SHA of korvusadmin/korvus to checkout (default: main)"
+        required: false
+        default: "main"
+
+jobs:
+  snippet-e2e-mocked:
+    name: snippet-e2e-mocked (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # REQUIRED — bloquants
+          - label: chromium
+            projects: "athletedatahub doomcheck floral-nuxt-fr floral-nuxt-es floral-nuxt-it"
+            browsers: "chromium"
+            blocking: true
+          - label: mobile-chrome
+            projects: "doomcheck-mobile-chrome"
+            browsers: "chromium"
+            blocking: true
+          - label: webkit
+            projects: "athletedatahub-webkit doomcheck-webkit"
+            browsers: "webkit"
+            blocking: true
+          # Best effort — continue-on-error
+          - label: firefox
+            projects: "doomcheck-firefox"
+            browsers: "firefox"
+            blocking: false
+          - label: mobile-safari
+            projects: "doomcheck-mobile-safari"
+            browsers: "webkit"
+            blocking: false
+    steps:
+      - name: Checkout test_website (this repo)
+        uses: actions/checkout@v5
+        with:
+          path: test_website
+
+      - name: Checkout platform (korvusadmin/korvus)
+        uses: actions/checkout@v5
+        with:
+          repository: korvusadmin/korvus
+          path: platform
+          token: ${{ secrets.KORVUS_PLATFORM_PAT }}
+          ref: ${{ github.event.client_payload.platform_sha || github.event.inputs.platform_ref || 'main' }}
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: |
+            platform/package-lock.json
+            test_website/tests/package-lock.json
+
+      - name: Install platform deps
+        working-directory: platform
+        run: npm ci
+
+      - name: Install test_website tests deps
+        working-directory: test_website/tests
+        run: npm ci
+
+      - name: Prisma generate (required by snippet build)
+        working-directory: platform
+        env:
+          DATABASE_URL: "postgresql://fake:fake@localhost:5432/fake"
+        run: npx prisma generate
+
+      - name: Build snippet (korvus.min.js)
+        working-directory: platform
+        run: npm run snippet:build
+
+      - name: Install Playwright browsers (${{ matrix.browsers }})
+        working-directory: test_website/tests
+        run: npx playwright install --with-deps ${{ matrix.browsers }}
+
+      - name: Run Playwright (${{ matrix.label }} — blocking)
+        if: matrix.blocking == true
+        working-directory: test_website/tests
+        env:
+          CI: "true"
+        run: |
+          PROJECTS_ARGS=""
+          for p in ${{ matrix.projects }}; do
+            PROJECTS_ARGS="$PROJECTS_ARGS --project=$p"
+          done
+          npx playwright test $PROJECTS_ARGS
+
+      - name: Run Playwright (${{ matrix.label }} — best effort)
+        if: matrix.blocking == false
+        continue-on-error: true
+        working-directory: test_website/tests
+        env:
+          CI: "true"
+        run: |
+          PROJECTS_ARGS=""
+          for p in ${{ matrix.projects }}; do
+            PROJECTS_ARGS="$PROJECTS_ARGS --project=$p"
+          done
+          npx playwright test $PROJECTS_ARGS
+
+      - name: Upload Playwright report (${{ matrix.label }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-snippet-${{ matrix.label }}
+          path: test_website/tests/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload traces & screenshots (${{ matrix.label }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-snippet-${{ matrix.label }}
+          path: test_website/tests/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
