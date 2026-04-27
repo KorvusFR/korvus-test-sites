@@ -100,6 +100,21 @@ jobs:
         working-directory: test_website/tests
         run: npm ci
 
+      # Playwright's webServer config (tests/playwright.config.ts) spawns
+      # `npm run dev` in each app — so each app needs its own node_modules
+      # or Next/Nuxt isn't on PATH and the spawn dies with exit 127.
+      - name: Install apps deps
+        run: |
+          for app in athletedatahub taguardian-com doomcheck floral-nuxt; do
+            if [ -f "test_website/apps/$app/package.json" ]; then
+              echo "::group::npm ci — $app"
+              (cd "test_website/apps/$app" && npm ci)
+              echo "::endgroup::"
+            else
+              echo "Skipping $app (not present on this ref)"
+            fi
+          done
+
       - name: Prisma generate (required by snippet build)
         working-directory: platform
         env:
