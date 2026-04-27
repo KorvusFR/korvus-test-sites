@@ -3,15 +3,23 @@ import fs from "node:fs"
 import path from "node:path"
 
 // --- Config types (subset of KorvusConfig) ---
-
+//
+// Refactor "zero config client" : platform / pageTypeRules /
+// datalayerEventMapping / domSelectors sont strippes par readConfig() cote
+// snippet (cf. platform/tests/unit/snippet/config.test.ts). Le helper continue
+// de les accepter pour la retrocompat des specs qui les passaient encore — ils
+// sont silencieusement ignores au boot. Nouveaux specs : ne PAS les passer.
 export interface SnippetConfig {
   websiteId: string
   apiKey: string
   endpoint: string
   platform?: string
   errorSelectors?: string[]
+  /** @deprecated strippe par readConfig (refactor zero config client). */
   pageTypeRules?: Record<string, { url_contains?: string; or_selector?: string }>
+  /** @deprecated strippe par readConfig (refactor zero config client). */
   datalayerEventMapping?: Record<string, string>
+  /** @deprecated strippe par readConfig (refactor zero config client). */
   domSelectors?: Record<string, unknown>
 }
 

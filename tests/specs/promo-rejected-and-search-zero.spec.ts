@@ -14,10 +14,6 @@ import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
 const doomcheck = getSiteConfig("doomcheck")
 
-const PAGE_TYPE_RULES = {
-  checkout: { url_contains: "/sim/checkout" },
-}
-
 async function simulateAxeptio(page: Page, granted: boolean): Promise<void> {
   await page.addInitScript((consent: boolean) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,10 +33,7 @@ test.describe("Worker B4.4 — promo_code_rejected", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)

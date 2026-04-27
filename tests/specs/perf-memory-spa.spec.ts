@@ -150,11 +150,6 @@ test.describe("perf-memory-spa", () => {
         "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
       endpoint: "/api/ingest",
       platform: "custom",
-      pageTypeRules: {
-        cart: { url_contains: FLORAL_FR.routes.cart },
-        checkout: { url_contains: FLORAL_FR.routes.checkout },
-        order_confirmation: { url_contains: FLORAL_FR.routes.thanks },
-      },
     })
 
     // Boot frais sur home, attendre le boot snippet (post-load + setTimeout(0)).

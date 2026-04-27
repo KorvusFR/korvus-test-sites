@@ -7,13 +7,6 @@ import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
 const adh = getSiteConfig("athletedatahub")
 
-const PAGE_TYPE_RULES = {
-  plp: { url_contains: "/catalog" },
-  search: { url_contains: "/search" },
-  checkout: { url_contains: "/checkout" },
-  cart: { url_contains: "/cart" },
-}
-
 // Axeptio simulation — athletedatahub's CMP (window.__korvusCMP) is NOT detected by snippet
 async function simulateAxeptio(
   page: import("@playwright/test").Page,
@@ -35,20 +28,17 @@ test.describe("ADH — page_type detection", () => {
   const cases = [
     { name: "home", path: "/", expected: "home" },
     { name: "pdp (JSON-LD)", path: "/products/pro-training-tshirt-black", expected: "pdp" },
-    { name: "plp (pageTypeRules)", path: "/catalog", expected: "plp" },
-    { name: "search (pageTypeRules)", path: "/search?q=protein", expected: "search" },
-    { name: "checkout (pageTypeRules)", path: "/checkout", expected: "checkout" },
-    { name: "cart (pageTypeRules)", path: "/cart", expected: "cart" },
+    { name: "plp (URL pattern /catalog)", path: "/catalog", expected: "plp" },
+    { name: "search (URL pattern /search)", path: "/search?q=protein", expected: "search" },
+    { name: "checkout (URL pattern /checkout)", path: "/checkout", expected: "checkout" },
+    { name: "cart (URL pattern /cart)", path: "/cart", expected: "cart" },
   ]
 
   for (const c of cases) {
     test(`${c.name} → page_type = "${c.expected}"`, async ({ page }) => {
       const interceptor = new IngestInterceptor(page)
       await interceptor.attach()
-      await injectSnippet(page, {
-        ...adh,
-        pageTypeRules: PAGE_TYPE_RULES,
-      })
+      await injectSnippet(page, adh)
 
       await page.goto(c.path)
       await page.waitForTimeout(2000)
@@ -317,11 +307,7 @@ test.describe("ADH — happy path chaîné v2", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      pageTypeRules: PAGE_TYPE_RULES,
-      domSelectors: { add_to_cart: "button.gap-2" },
-    })
+    await injectSnippet(page, adh)
 
     // 1) PDP — structured_data_check + pageview pdp + add_to_cart_attempt
     await page.goto("/products/pro-training-tshirt-black")
@@ -624,10 +610,7 @@ test.describe("ADH — quick-add hors PDP (elargissement gate S2+S3)", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, adh)
 
     await page.goto("/catalog")
     await page.waitForLoadState("networkidle")
@@ -657,10 +640,7 @@ test.describe("ADH — quick-add hors PDP (elargissement gate S2+S3)", () => {
   }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, adh)
 
     await page.goto("/")
     await page.waitForLoadState("networkidle")
@@ -690,10 +670,7 @@ test.describe("ADH — quick-add hors PDP (elargissement gate S2+S3)", () => {
     // pas declencher de faux ATC, meme si la gate est elargie.
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...adh,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, adh)
 
     await page.goto("/catalog")
     await page.waitForLoadState("networkidle")

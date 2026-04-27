@@ -13,13 +13,10 @@ import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 //
 // Doomcheck (port 3003) ne supporte pas un vrai paiement Stripe, on simule
 // donc côté DOM + via des fetch interceptés. La page support est /sim/checkout
-// (page_type forcé via pageTypeRules).
+// (page_type "checkout" detecte via cascade URL multilingue
+// lib/patterns/page-type.ts — `/sim/checkout` matche le pattern `/checkout`).
 
 const doomcheck = getSiteConfig("doomcheck")
-
-const PAGE_TYPE_RULES = {
-  checkout_payment: { url_contains: "/sim/checkout" },
-}
 
 test.describe("Worker B4.2 — payment failed signals", () => {
   test("PSP 4xx response → request_error capturé", async ({ page }) => {
@@ -38,10 +35,7 @@ test.describe("Worker B4.2 — payment failed signals", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)
@@ -92,10 +86,7 @@ test.describe("Worker B4.2 — payment failed signals", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)
@@ -158,10 +149,7 @@ test.describe("Worker B4.2 — payment failed signals", () => {
     // gèrent le paiement entièrement client-side (Apple Pay, wallets).
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)

@@ -16,10 +16,6 @@ import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
 const doomcheck = getSiteConfig("doomcheck")
 
-const PAGE_TYPE_RULES = {
-  checkout: { url_contains: "/sim/checkout" },
-}
-
 // --- Helpers ---
 
 async function simulateAxeptio(page: Page, granted: boolean): Promise<void> {
@@ -328,7 +324,6 @@ test.describe("V2 — promo_code_rejected", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -387,7 +382,6 @@ test.describe("V2 — payment_method_selected", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -431,7 +425,6 @@ test.describe("V2 — payment_method_selected", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -466,7 +459,6 @@ test.describe("V2 — payment_method_selected", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -507,7 +499,6 @@ test.describe("V2 — shipping_method_selected", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -551,7 +542,6 @@ test.describe("V2 — shipping_method_selected", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -591,7 +581,6 @@ test.describe("V2 — payment_attempted", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -631,7 +620,6 @@ test.describe("V2 — payment_attempted", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -662,7 +650,6 @@ test.describe("V2 — payment_attempted", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -700,7 +687,6 @@ test.describe("V2 — 3ds_initiated", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -732,7 +718,6 @@ test.describe("V2 — 3ds_initiated", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -772,7 +757,6 @@ test.describe("V2 — 3ds_completed", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")
@@ -818,7 +802,6 @@ test.describe("V2 — 3ds_completed", () => {
     await interceptor.attach()
     await injectSnippet(page, {
       ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
     })
 
     await page.goto("/sim/checkout")

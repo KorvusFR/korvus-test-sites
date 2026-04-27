@@ -19,10 +19,6 @@ import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
 const doomcheck = getSiteConfig("doomcheck")
 
-const PAGE_TYPE_RULES = {
-  checkout_payment: { url_contains: "/sim/checkout" },
-}
-
 test.describe("Worker B4.3 — 3DS challenge failed / abandonné", () => {
   test("outcome failed_silent: iframe ACS retirée sans signal de succès ni erreur", async ({
     page,
@@ -34,10 +30,7 @@ test.describe("Worker B4.3 — 3DS challenge failed / abandonné", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)
@@ -94,10 +87,7 @@ test.describe("Worker B4.3 — 3DS challenge failed / abandonné", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)
@@ -167,10 +157,7 @@ test.describe("Worker B4.3 — 3DS challenge failed / abandonné", () => {
 
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
-    await injectSnippet(page, {
-      ...doomcheck,
-      pageTypeRules: PAGE_TYPE_RULES,
-    })
+    await injectSnippet(page, doomcheck)
 
     await page.goto("/sim/checkout")
     await page.waitForTimeout(800)

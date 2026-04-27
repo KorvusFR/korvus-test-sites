@@ -104,25 +104,23 @@ async function setupSpec(page: Page, locale: LocaleKey, granted: boolean) {
   await interceptor.attach()
   await simulateAxeptio(page, granted)
   // Override des defaults SITE_DEFAULTS avec :
-  //  - pageTypeRules : reproduit la configuration côté website.dom_selectors
-  //    qu'un client (Interflora) doit fournir quand ses URLs cart/checkout/thanks
-  //    ne matchent pas la cascade générique multilingue du snippet (gap connu :
-  //    /cesta, /pago, /pagamento absents de lib/patterns/page-type.ts).
   //  - domSelectors.add_to_cart : findAtcButton() n'a PAS de fallback
   //    générique pour platform="custom" (cf. snippet/src/collectors/product-info.ts:320).
   //    Sans ce config override, ATC tracking est silencieusement broken sur tout
   //    client custom-platform — ça doit vivre dans website.dom_selectors en prod.
+  //
+  // Note : pas besoin de pageTypeRules. Toutes les routes Interflora locales
+  // (/panier, /cesta, /carrello, /checkout, /pago, /pagamento, /merci, /grazie,
+  // /gracias) sont couvertes par la cascade URL multilingue dans
+  // lib/patterns/page-type.ts, et le garde-fou EXPLICIT_NON_PRODUCT_PAGE_TYPES
+  // ajouté en étape 0 de detectPageTypeFast empêche le JSON-LD Product résiduel
+  // (fuite Vue Router pushState avant onBeforeUnmount) de gagner en SPA.
   const baseConfig = {
     websiteId: LOCALES[locale].websiteId,
     apiKey:
       "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
     endpoint: "/api/ingest",
     platform: "custom",
-    pageTypeRules: {
-      cart: { url_contains: cfg.routes.cart },
-      checkout: { url_contains: cfg.routes.checkout },
-      order_confirmation: { url_contains: cfg.routes.thanks },
-    },
     domSelectors: {
       add_to_cart: "button.add-to-cart",
     },

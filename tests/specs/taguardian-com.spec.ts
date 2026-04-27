@@ -19,13 +19,6 @@ import { injectSnippet, getSiteConfig } from "../helpers/inject-snippet"
 
 const tgd = getSiteConfig("taguardian-com")
 
-const PAGE_TYPE_RULES = {
-  plp: { url_contains: "/catalog" },
-  search: { url_contains: "/search" },
-  checkout: { url_contains: "/checkout" },
-  cart: { url_contains: "/cart" },
-}
-
 // Axeptio simulation — taguardian-com's CookieBanner (localStorage) is NOT detected by snippet
 async function simulateAxeptio(
   page: import("@playwright/test").Page,
@@ -47,10 +40,10 @@ test.describe("TGD — page_type detection", () => {
   const cases = [
     { name: "home", path: "/", expected: "home" },
     { name: "pdp (JSON-LD)", path: "/products/crowdstrike-falcon-pro-endpoint", expected: "pdp" },
-    { name: "plp (pageTypeRules)", path: "/catalog", expected: "plp" },
-    { name: "search (pageTypeRules)", path: "/search?q=firewall", expected: "search" },
-    { name: "checkout (pageTypeRules)", path: "/checkout", expected: "checkout" },
-    { name: "cart (pageTypeRules)", path: "/cart", expected: "cart" },
+    { name: "plp (URL pattern /catalog)", path: "/catalog", expected: "plp" },
+    { name: "search (URL pattern /search)", path: "/search?q=firewall", expected: "search" },
+    { name: "checkout (URL pattern /checkout)", path: "/checkout", expected: "checkout" },
+    { name: "cart (URL pattern /cart)", path: "/cart", expected: "cart" },
     { name: "blog → other", path: "/blog/zero-trust-architecture-2025-guide", expected: "other" },
   ]
 
@@ -58,10 +51,7 @@ test.describe("TGD — page_type detection", () => {
     test(`${c.name} → page_type = "${c.expected}"`, async ({ page }) => {
       const interceptor = new IngestInterceptor(page)
       await interceptor.attach()
-      await injectSnippet(page, {
-        ...tgd,
-        pageTypeRules: PAGE_TYPE_RULES,
-      })
+      await injectSnippet(page, tgd)
 
       await page.goto(c.path)
       await page.waitForTimeout(2000)
