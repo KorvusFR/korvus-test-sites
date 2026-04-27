@@ -1,0 +1,29 @@
+{
+  "siteName": "Floral ES — Flores y ramos a domicilio",
+  "currency": "EUR",
+  "category": "funerarios",
+  "categoryLabel": "Funerarios y pésame",
+  "product": {
+    "slug": "consuelo-eterno",
+    "id": "2",
+    "trailing": null,
+    "name": "Consuelo Eterno",
+    "price": 84.5
+  },
+  "routes": {
+    "cart": "/cesta",
+    "checkout": "/pago",
+    "thanks": "/gracias"
+  },
+  "labels": {
+    "addToCart": "Añadir a la cesta",
+    "viewCart": "Ver mi cesta",
+    "checkoutCta": "Tramitar pedido",
+    "pay": "Pagar",
+    "thanksTitle": "Gracias por tu pedido",
+    "thanksSubtitle": "Tu ramo está en camino.",
+    "navHome": "Inicio",
+    "navCategory": "Funerarios",
+    "currency": "€"
+  }
+}

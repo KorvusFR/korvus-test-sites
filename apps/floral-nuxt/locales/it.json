@@ -1,0 +1,29 @@
+{
+  "siteName": "Floral IT — Fiori e bouquet a domicilio",
+  "currency": "EUR",
+  "category": "condoglianze",
+  "categoryLabel": "Condoglianze",
+  "product": {
+    "slug": "omaggio-bianco",
+    "id": "2",
+    "trailing": null,
+    "name": "Omaggio Bianco",
+    "price": 82.0
+  },
+  "routes": {
+    "cart": "/carrello",
+    "checkout": "/pagamento",
+    "thanks": "/grazie"
+  },
+  "labels": {
+    "addToCart": "Aggiungi al carrello",
+    "viewCart": "Vedi il carrello",
+    "checkoutCta": "Procedi all'ordine",
+    "pay": "Paga",
+    "thanksTitle": "Grazie per il tuo ordine",
+    "thanksSubtitle": "Il tuo bouquet è in viaggio.",
+    "navHome": "Home",
+    "navCategory": "Condoglianze",
+    "currency": "€"
+  }
+}

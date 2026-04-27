@@ -64,6 +64,7 @@ export function AddToCartButton({
       variant="primary"
       size={size}
       onClick={handleAdd}
+      data-add-to-cart=""
       className={added ? "bg-green-600 hover:bg-green-600" : ""}
     >
       {added ? (

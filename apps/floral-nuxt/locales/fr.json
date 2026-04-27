@@ -1,0 +1,29 @@
+{
+  "siteName": "Floral FR — Bouquets et fleurs livrés",
+  "currency": "EUR",
+  "category": "deuil",
+  "categoryLabel": "Deuil et condoléances",
+  "product": {
+    "slug": "deuil-bouquet-eclosion-espoir",
+    "id": "1",
+    "trailing": "FR",
+    "name": "Bouquet Éclosion d'Espoir",
+    "price": 79.9
+  },
+  "routes": {
+    "cart": "/panier",
+    "checkout": "/checkout",
+    "thanks": "/merci"
+  },
+  "labels": {
+    "addToCart": "Ajouter au panier",
+    "viewCart": "Voir mon panier",
+    "checkoutCta": "Passer commande",
+    "pay": "Payer",
+    "thanksTitle": "Merci pour votre commande",
+    "thanksSubtitle": "Votre bouquet est en route.",
+    "navHome": "Accueil",
+    "navCategory": "Deuil",
+    "currency": "€"
+  }
+}

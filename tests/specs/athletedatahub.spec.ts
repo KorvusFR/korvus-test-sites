@@ -613,3 +613,115 @@ test.describe("ADH — consent flow", () => {
     expect(session!.has_gclid).toBe(false)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Quick-add hors PDP — elargissement gate ATC S2+S3
+// ---------------------------------------------------------------------------
+//
+// La gate ATC est elargie de page_type=pdp seul a pdp+plp+search+home pour
+// capter les quick-add depuis les listes (~30% des ATC mid-market perdus en
+// gate stricte). Sur ADH (platform=custom), le bouton AddToCartButton porte
+// le marker EXPLICIT data-add-to-cart, qui ecoute partout sans risque de
+// faux positif heuristique. Ces tests verrouillent la chaine bout-en-bout.
+
+test.describe("ADH — quick-add hors PDP (elargissement gate S2+S3)", () => {
+  test("PLP /catalog : click ATC sur ProductCard → add_to_cart_attempt avec page_type=plp", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...adh,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/catalog")
+    await page.waitForLoadState("networkidle")
+    await page.waitForTimeout(2000)
+
+    const atcButtons = page.locator("button[data-add-to-cart]")
+    await expect(atcButtons.first()).toBeVisible()
+    await atcButtons.first().click()
+
+    // PerformanceObserver timeout 2s + flush buffer
+    await page.waitForTimeout(2300)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("add_to_cart_attempt")
+    expect(events.length, "exactly 1 add_to_cart_attempt expected").toBe(1)
+
+    const pageviews = interceptor.getPageviews()
+    expect(pageviews.length).toBeGreaterThan(0)
+    expect(
+      pageviews[0].page_type,
+      "PLP /catalog should be detected as page_type=plp",
+    ).toBe("plp")
+  })
+
+  test("home / : click ATC sur featured ProductCard → add_to_cart_attempt avec page_type=home", async ({
+    page,
+  }) => {
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...adh,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/")
+    await page.waitForLoadState("networkidle")
+    await page.waitForTimeout(2000)
+
+    // Si la home ADH n a pas de featured ATC, skip plutot que fail (le
+    // chantier porte sur l infra gate, pas sur la composition home).
+    const atcButtons = page.locator("button[data-add-to-cart]")
+    const count = await atcButtons.count()
+    test.skip(count === 0, "home ADH sans featured ATC — non-regression site, hors chantier")
+
+    await atcButtons.first().click()
+    await page.waitForTimeout(2300)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("add_to_cart_attempt")
+    expect(events.length).toBe(1)
+
+    const pageviews = interceptor.getPageviews()
+    expect(pageviews[0].page_type).toBe("home")
+  })
+
+  test("PLP : click sur bouton anti-pattern (Voir le panier) → AUCUN add_to_cart_attempt", async ({
+    page,
+  }) => {
+    // Sentinelle E2E : un bouton anti-pattern injecte sur la PLP ne doit
+    // pas declencher de faux ATC, meme si la gate est elargie.
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, {
+      ...adh,
+      pageTypeRules: PAGE_TYPE_RULES,
+    })
+
+    await page.goto("/catalog")
+    await page.waitForLoadState("networkidle")
+    await page.waitForTimeout(2000)
+
+    // Injection runtime d un lien "Voir le panier" qui mime un header link.
+    // .add-to-cart est dans HEURISTIC, donc desactive sur PLP. Et meme s il
+    // matchait, l anti-pattern regex couvre "voir" / "panier" en double.
+    await page.evaluate(() => {
+      const link = document.createElement("button")
+      link.className = "add-to-cart"
+      link.setAttribute("aria-label", "Voir mon panier")
+      link.textContent = "Voir le panier"
+      link.id = "fake-cart-link"
+      document.body.appendChild(link)
+    })
+
+    await page.locator("#fake-cart-link").click()
+    await page.waitForTimeout(2300)
+    await interceptor.triggerFlush()
+
+    const events = interceptor.getEvents("add_to_cart_attempt")
+    expect(events.length, "anti-pattern button must not emit ATC").toBe(0)
+  })
+})

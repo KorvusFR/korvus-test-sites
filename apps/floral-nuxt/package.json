@@ -1,0 +1,24 @@
+{
+  "name": "floral-nuxt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "dev:fr": "NUXT_PUBLIC_LOCALE=fr nuxt dev --port 3004",
+    "dev:es": "NUXT_PUBLIC_LOCALE=es nuxt dev --port 3005",
+    "dev:it": "NUXT_PUBLIC_LOCALE=it nuxt dev --port 3006",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "nuxt": "^3.14.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^5.6.0",
+    "vue-tsc": "^2.1.0"
+  }
+}

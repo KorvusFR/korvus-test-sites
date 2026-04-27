@@ -32,7 +32,13 @@ export default defineConfig({
     {
       name: "doomcheck",
       use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3003" },
-      testIgnore: ["**/athletedatahub.spec.ts", "**/taguardian-com.spec.ts"],
+      testIgnore: [
+        "**/athletedatahub.spec.ts",
+        "**/taguardian-com.spec.ts",
+        "**/floral-nuxt.spec.ts",
+        "**/perf-memory-spa.spec.ts",
+        "**/spa-navigation.spec.ts",
+      ],
     },
     // WebKit — Phase 7 A3. Même specs, moteur Safari pour catcher les
     // divergences visibilitychange / pushState / PerformanceObserver /
@@ -45,7 +51,13 @@ export default defineConfig({
     {
       name: "doomcheck-webkit",
       use: { ...devices["Desktop Safari"], baseURL: "http://localhost:3003" },
-      testIgnore: ["**/athletedatahub.spec.ts", "**/taguardian-com.spec.ts"],
+      testIgnore: [
+        "**/athletedatahub.spec.ts",
+        "**/taguardian-com.spec.ts",
+        "**/floral-nuxt.spec.ts",
+        "**/perf-memory-spa.spec.ts",
+        "**/spa-navigation.spec.ts",
+      ],
     },
     // Audit 2026-04-15 (B6b) — matrice complète sur doomcheck (suite
     // snippet exhaustive). Ajoute Firefox desktop + Mobile Chrome (Pixel 7)
@@ -62,17 +74,65 @@ export default defineConfig({
     {
       name: "doomcheck-firefox",
       use: { ...devices["Desktop Firefox"], baseURL: "http://localhost:3003" },
-      testIgnore: ["**/athletedatahub.spec.ts", "**/taguardian-com.spec.ts"],
+      testIgnore: [
+        "**/athletedatahub.spec.ts",
+        "**/taguardian-com.spec.ts",
+        "**/floral-nuxt.spec.ts",
+        "**/perf-memory-spa.spec.ts",
+        "**/spa-navigation.spec.ts",
+      ],
     },
     {
       name: "doomcheck-mobile-chrome",
       use: { ...devices["Pixel 7"], baseURL: "http://localhost:3003" },
-      testIgnore: ["**/athletedatahub.spec.ts", "**/taguardian-com.spec.ts"],
+      testIgnore: [
+        "**/athletedatahub.spec.ts",
+        "**/taguardian-com.spec.ts",
+        "**/floral-nuxt.spec.ts",
+        "**/perf-memory-spa.spec.ts",
+        "**/spa-navigation.spec.ts",
+      ],
     },
     {
       name: "doomcheck-mobile-safari",
       use: { ...devices["iPhone 13"], baseURL: "http://localhost:3003" },
-      testIgnore: ["**/athletedatahub.spec.ts", "**/taguardian-com.spec.ts"],
+      testIgnore: [
+        "**/athletedatahub.spec.ts",
+        "**/taguardian-com.spec.ts",
+        "**/floral-nuxt.spec.ts",
+        "**/perf-memory-spa.spec.ts",
+        "**/spa-navigation.spec.ts",
+      ],
+    },
+    // floral-nuxt — Nuxt 3 SSR + SPA, 3 locales (FR/ES/IT) sur ports
+    // 3004/3005/3006 via NUXT_PUBLIC_LOCALE. Replique les patterns
+    // Interflora pour valider la cascade i18n du snippet (cart/checkout/
+    // order_confirmation multilingue) + l'hygiene SPA (pushState dedup,
+    // listener leak, timer cleanup). Chromium uniquement : la matrice
+    // cross-engine vit sur doomcheck (cf. tests-snippet.md).
+    //
+    // floral-nuxt.spec.ts parse le project name pour extraire la locale,
+    // donc les 3 projects DOIVENT s'appeler floral-nuxt-{fr,es,it}.
+    // perf-memory-spa et spa-navigation tournent uniquement sur le project
+    // FR (skip interne sur les autres).
+    {
+      name: "floral-nuxt-fr",
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3004" },
+      testMatch: [
+        "**/floral-nuxt.spec.ts",
+        "**/perf-memory-spa.spec.ts",
+        "**/spa-navigation.spec.ts",
+      ],
+    },
+    {
+      name: "floral-nuxt-es",
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3005" },
+      testMatch: "**/floral-nuxt.spec.ts",
+    },
+    {
+      name: "floral-nuxt-it",
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3006" },
+      testMatch: "**/floral-nuxt.spec.ts",
     },
   ],
 
@@ -95,6 +155,27 @@ export default defineConfig({
       command: "npm run dev -- --port 3003",
       url: "http://localhost:3003",
       cwd: "../apps/doomcheck",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: "npm run dev:fr",
+      url: "http://localhost:3004",
+      cwd: "../apps/floral-nuxt",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: "npm run dev:es",
+      url: "http://localhost:3005",
+      cwd: "../apps/floral-nuxt",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: "npm run dev:it",
+      url: "http://localhost:3006",
+      cwd: "../apps/floral-nuxt",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
