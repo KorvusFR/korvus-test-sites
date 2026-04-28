@@ -8,6 +8,9 @@ export interface SnippetConfig {
   apiKey: string
   endpoint: string
   errorSelectors?: string[]
+  // Bridge Tealium opt-in (avril 2026). Active uniquement dans les specs
+  // qui testent le wrap window.utag.link/view (cf. tealium-bridge.spec.ts).
+  enableTealiumBridge?: boolean
 }
 
 // --- Default configs per test site ---
