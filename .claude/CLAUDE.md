@@ -128,9 +128,9 @@ C'est le point d'insertion officiel pour le snippet Korvus (et tout autre script
 
 ---
 
-## Déploiement — GitHub Actions + Docker Compose (VPS 2)
+## Déploiement — GitHub Actions + Docker Compose
 
-- **Serveur** : `57.129.133.114` (VPS 2)
+- **Serveur** : `91.134.132.241` (OVH Dunkerque, partagé avec le stack GTM)
 - **Déclencheur** : `git push origin main` → GitHub Actions (`.github/workflows/deploy.yml`)
 - **CI** : détecte les apps modifiées via `dorny/paths-filter`, SCP les fichiers vers le VPS, puis `docker compose build/up` uniquement pour les apps touchées
 - **Orchestrateur** : Docker Compose (`docker-compose.yml` à la racine du repo)
