@@ -51,7 +51,14 @@ const selectedMethod = ref<string>("")
 function onPay(): void {
   // Defer SPA nav so payment_attempted (delegated click listener) and
   // payment_method_selected captures complete before SPA cleanup runs.
-  setTimeout(() => router.push(routes.thanks), 50)
+  // order_id query corroborates order_confirmation page_type: bare
+  // /merci|/gracias|/grazie are now rejected by the snippet to avoid
+  // false positives on newsletter/contact-form thank-you pages.
+  const orderId = `ORD-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
+  setTimeout(
+    () => router.push({ path: routes.thanks, query: { order_id: orderId } }),
+    50,
+  )
 }
 </script>
 
