@@ -128,15 +128,18 @@ C'est le point d'insertion officiel pour le snippet Korvus (et tout autre script
 
 ---
 
-## Déploiement — Caddy + Docker Compose (VPS 2)
+## Déploiement — GitHub Actions + Docker Compose (VPS 2)
 
 - **Serveur** : `57.129.133.114` (VPS 2)
+- **Déclencheur** : `git push origin main` → GitHub Actions (`.github/workflows/deploy.yml`)
+- **CI** : détecte les apps modifiées via `dorny/paths-filter`, SCP les fichiers vers le VPS, puis `docker compose build/up` uniquement pour les apps touchées
 - **Orchestrateur** : Docker Compose (`docker-compose.yml` à la racine du repo)
 - **Reverse proxy** : Caddy 2 Alpine (auto SSL Let's Encrypt) — instance globale dans `/opt/caddy/`
 - **Réseau Docker** : `web` (externe, partagé entre tous les projets du VPS)
 - **Build** : Docker via le `Dockerfile` présent dans chaque app (`apps/[nom-app]/Dockerfile`)
 - **Variables de build** : passées comme `args` dans `docker-compose.yml`
 - **Chemin sur le VPS** : `/opt/korvus-test-sites`
+- **Note** : un commit ne touchant que `.gitignore` ou `tests/` ne déclenche pas de redéploiement (seuls `apps/`, `docker-compose.yml`, `Caddyfile` sont surveillés)
 
 ### Architecture VPS
 
