@@ -781,6 +781,87 @@ test.describe("V2 — 3ds_completed", () => {
     expect(events[0].payload.outcome).toBe("success")
   })
 
+  // Audit 2026-04-28 — comble le gap hard-nav. La cascade success
+  // `iframe_removed_then_order_confirmation` reposait sur
+  // `bus.onNavigationChange` qui ne fire que sur pushState. Sur les sites
+  // e-com en hard nav (POST -> 302, location.href), l'event etait perdu.
+  // Ce test verifie le restore retroactif via sessionStorage : on inject
+  // un challenge cote /sim/checkout, on remove l'iframe, puis on fait une
+  // VRAIE hard nav (page.goto) vers /sim/confirmation. Le snippet
+  // re-boote sur la nouvelle page, lit `korvus_3ds_pending_v1` et emet
+  // `3ds_completed` avec discriminant `restored_from_storage: true`.
+  test("outcome success via hard nav vers /confirmation (sessionStorage restore)", async ({
+    page,
+  }) => {
+    test.setTimeout(45_000)
+
+    // Mock une page de confirmation minimale (doomcheck n'a pas cette route).
+    // Le pathname `/sim/confirmation` matche `PAGE_TYPE_URL_PATTERNS.order_confirmation`
+    // via `pathname.includes("/confirmation")`.
+    await page.route("**/sim/confirmation*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: '<!DOCTYPE html><html><head><title>Merci</title></head><body><h1>Commande confirmee</h1><div id="sim-root"></div></body></html>',
+      }),
+    )
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/sim/checkout")
+    await waitBoot(page)
+
+    // 1. Inject iframe ACS Stripe -> 3ds_initiated cascade=iframe_acs_pattern_match
+    await page.evaluate(() => {
+      const root = document.querySelector("#sim-root") as HTMLElement
+      const iframe = document.createElement("iframe")
+      iframe.id = "sim-3ds-frame"
+      iframe.src = "https://hooks.stripe.com/3d_secure/acs_redirect"
+      root.appendChild(iframe)
+    })
+    await page.waitForTimeout(800)
+
+    // 2. Remove iframe -> handleIframeRemoved persiste iframe_removed=true
+    await page.evaluate(() => {
+      document.getElementById("sim-3ds-frame")?.remove()
+    })
+    await page.waitForTimeout(500)
+
+    // Sanity check: l'etat pending est ecrit en sessionStorage
+    const pendingRaw = await page.evaluate(() =>
+      sessionStorage.getItem("korvus_3ds_pending_v1"),
+    )
+    expect(pendingRaw, "korvus_3ds_pending_v1 doit etre persiste apres iframe removed").not.toBeNull()
+    const pending = JSON.parse(pendingRaw as string) as Record<string, unknown>
+    expect(pending.iframe_removed).toBe(true)
+    expect(pending.acs_host).toBe("hooks.stripe.com")
+
+    // 3. HARD NAV vers /sim/confirmation (page.goto = vraie navigation,
+    // pas pushState). Le snippet meurt et reboot sur la nouvelle page.
+    await page.goto("/sim/confirmation")
+    await waitBoot(page)
+    await interceptor.triggerFlush()
+
+    // 4. Le boot du collector three-ds doit avoir lu le pending state
+    // et emis `3ds_completed` retroactif.
+    const events = interceptor.getEvents("3ds_completed")
+    expect(events.length, "3ds_completed doit etre emis apres hard nav").toBeGreaterThan(0)
+    const completed = events[0]
+    expect(completed.payload.outcome).toBe("success")
+    expect(completed.payload.cascade_matched).toBe(
+      "iframe_removed_then_order_confirmation",
+    )
+    expect(completed.payload.restored_from_storage).toBe(true)
+
+    // Anti-replay : la cle est consume au boot
+    const pendingAfter = await page.evaluate(() =>
+      sessionStorage.getItem("korvus_3ds_pending_v1"),
+    )
+    expect(pendingAfter).toBeNull()
+  })
+
   test("outcome failed: iframe removed puis élément d'erreur apparaît", async ({
     page,
   }) => {
