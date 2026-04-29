@@ -5,3 +5,6 @@ tests/playwright-report/
 tests/test-results/
 .DS_Store
 *.tsbuildinfo
+
+# Contexte Claude Code (local uniquement, repo public a venir)
+.claude/
