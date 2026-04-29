@@ -81,19 +81,6 @@ Add an entry to the `sites` array in `config.ts`:
 }
 ```
 
-## Running continuously with Coolify cron
-
-In Coolify, create a **Cron Job** resource pointing to this directory with:
-
-```bash
-npm run run-traffic
-```
-
-Recommended schedule: `*/30 * * * *` (every 30 minutes) to generate continuous background traffic.
-
-Set env vars in Coolify if needed:
-- No required env vars — all config is in `config.ts`
-
 ## TypeScript check
 
 ```bash
