@@ -223,23 +223,30 @@ test.describe("Spec 3 — Didomi denied", () => {
 // Spec 4 — GCM v2 via dataLayer.push (regression Iubenda fix)
 // ---------------------------------------------------------------------------
 //
-// dataLayer pre-rempli avec ["consent", "default", { analytics_storage:
+// dataLayer pre-rempli avec ["consent", "update", { analytics_storage:
 // "granted" }]. Le snippet doit lire l'entry consent du dataLayer (Tier 2
 // GCM v2) et publier "granted". Aucune CMP Tier 1 ne masque le signal.
 //
 // Critique : le bug de classe Iubenda etait que la chaine || court-circuitait
 // le scan GCM dataLayer des qu'un detecteur Tier 1 trouvait sa CMP, meme
 // ambigue. Ici on teste que sans Tier 1, le scan GCM marche tel quel.
+//
+// Sentinelle CNIL : la commande GCM "default" est explicitement rejetee par
+// le snippet (privacy review 2026-04-28). "default" est la pre-config dev
+// avant decision utilisateur, pas un signal de consentement. Un site EU
+// configure avec `default granted` (illegal art. 82 LIL) ne doit PAS faire
+// passer le visiteur en "granted". Le 2e test ci-dessous cimente cette
+// rejection : si un futur changement re-accepte "default", il echoue.
 
 test.describe("Spec 4 — GCM v2 via dataLayer.push", () => {
-  test("dataLayer consent default analytics_storage=granted → granted", async ({
+  test("dataLayer consent update analytics_storage=granted → granted", async ({
     page,
   }) => {
     await page.addInitScript(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any
       w.dataLayer = [
-        ["consent", "default", { analytics_storage: "granted", ad_storage: "granted" }],
+        ["consent", "update", { analytics_storage: "granted", ad_storage: "granted" }],
       ]
     })
 
@@ -266,6 +273,53 @@ test.describe("Spec 4 — GCM v2 via dataLayer.push", () => {
       purchase,
       "purchase should pass consent gate under GCM granted",
     ).toBeDefined()
+  })
+
+  test("dataLayer consent default analytics_storage=granted → unknown (CNIL sentinelle)", async ({
+    page,
+  }) => {
+    // Pousser ["consent", "default", { analytics_storage: "granted" }] doit
+    // etre IGNORE par le snippet : "default" est la config developpeur avant
+    // interaction utilisateur, pas un signal de consentement valide. Le
+    // session.consent_status doit rester "unknown" (aucun autre signal CMP)
+    // et un purchase doit etre BLOQUE par le consent gate.
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any
+      w.dataLayer = [
+        ["consent", "default", { analytics_storage: "granted", ad_storage: "granted" }],
+      ]
+    })
+
+    const interceptor = new IngestInterceptor(page)
+    await interceptor.attach()
+    await injectSnippet(page, doomcheck)
+
+    await page.goto("/")
+    await page.waitForTimeout(1500)
+
+    // Exempt event pour flusher et capturer la session : sous "unknown" un
+    // purchase serait bloque par le consent gate -> aucun batch envoye ->
+    // getSession() reste undefined. Meme pattern que Spec 3 (Didomi denied).
+    await pushExemptErrorAndFlush(page, interceptor, "gcm-default-rejected")
+
+    const session = interceptor.getSession()
+    expect(session, "session should be captured").toBeDefined()
+    expect(
+      session!.consent_status,
+      "GCM 'default' command must be rejected → consent_status stays 'unknown'",
+    ).toBe("unknown")
+
+    // Sanity check : un purchase pousse sous "unknown" doit etre bloque.
+    interceptor.clear()
+    await pushPurchaseAndFlush(page, interceptor, "TX-INTEG-GCM-DEFAULT")
+    const blocked = interceptor
+      .getEvents("purchase")
+      .find((e) => e.payload.transaction_id === "TX-INTEG-GCM-DEFAULT")
+    expect(
+      blocked,
+      "purchase under 'default'-only signal must be blocked by consent gate",
+    ).toBeUndefined()
   })
 })
 
