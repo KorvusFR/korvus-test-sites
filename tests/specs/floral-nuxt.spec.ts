@@ -236,6 +236,29 @@ test("SPA parcours (consent granted) — 6 pageviews distincts + page_type multi
     "pdp",
   )
 
+  // A7bis (Interflora regression 2026-04) — `pdpPv.product_id` ne doit JAMAIS
+  // être le code locale ni un index variant. Avant le fix, urlSlugFallback
+  // retournait le DERNIER segment du path : "FR" sur /p/<slug>/<variant>/FR,
+  // ou "1" / "2" sur /p/<slug>/<variant>. Conséquence : tous les bouquets
+  // visités collapsaient sur une ligne unique dans products
+  // (UPSERT key (website_id, product_id_external)). Post-fix : pickProductSlug
+  // filtre locale + numérique court et retourne le rightmost survivor.
+  const productId = String(pdpPv?.product_id ?? "")
+  const expectedSlug = cfg.productPath.split("/")[2] ?? ""
+  expect(
+    productId,
+    `${cfg.productPath} : product_id ne doit jamais être le code locale (FR/EN/...) — c'est le bug Interflora`,
+  ).not.toMatch(/^(FR|EN|DE|ES|IT|fr|en|de|es|it)$/)
+  expect(
+    productId,
+    `${cfg.productPath} : product_id ne doit jamais être un index variant numérique`,
+  ).not.toMatch(/^\d{1,4}$/)
+  // Source datalayer si view_item poussé, sinon url_slug (= le slug exact).
+  // Le slug parsé doit exactement matcher le 2e segment du path Interflora.
+  if (pdpPv?.product_id_source === "url_slug") {
+    expect(productId).toBe(expectedSlug)
+  }
+
   // A13 — cohérence pageview_id : tous les events portent un pageview_id
   // qui existe dans pageviews (sinon = listener orphelin / fuite mémoire SPA).
   const knownPvIds = new Set(pageviews.map((p) => p.id))
