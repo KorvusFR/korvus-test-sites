@@ -6,7 +6,7 @@ gtm.korvus.fr {
 	}
 	handle {
 		basicauth {
-			pilou $2a$14$OUfmfjEHW9/TOjjyFpjlN.n5NwRu2HXnUd6SOVvVJbWthYJm2u9LK
+			admin $2y$12$gD0VoOpD2lY0wiOjig/HjOvoGd5qzoMgNtZ/NVcE9qpIXFzkkwW1e
 		}
 		reverse_proxy gtm-app:3000
 	}

@@ -38,13 +38,17 @@ on:
         required: false
         default: "main"
 
+concurrency:
+  group: snippet-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   snippet-e2e-mocked:
     name: snippet-e2e-mocked (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           # REQUIRED — bloquants
@@ -125,9 +129,19 @@ jobs:
         working-directory: platform
         run: npm run snippet:build
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browsers }}-${{ hashFiles('test_website/tests/package-lock.json') }}
+
+      - name: Install Playwright system deps (${{ matrix.browsers }})
+        working-directory: test_website/tests
+        run: npx playwright install-deps ${{ matrix.browsers }}
+
       - name: Install Playwright browsers (${{ matrix.browsers }})
         working-directory: test_website/tests
-        run: npx playwright install --with-deps ${{ matrix.browsers }}
+        run: npx playwright install ${{ matrix.browsers }}
 
       - name: Run Playwright (${{ matrix.label }} — blocking)
         if: matrix.blocking == true
