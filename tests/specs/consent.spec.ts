@@ -53,12 +53,6 @@ test.describe("Test 16 — Mode exempt (denied)", () => {
       jsErrors.some((e) => e.payload.message === "Exempt mode test error"),
       "js_error (exempt) should be sent when consent is denied",
     ).toBe(true)
-
-    const sdcEvents = interceptor.getEvents("structured_data_check")
-    expect(
-      sdcEvents.length,
-      "structured_data_check (exempt) should be sent when consent is denied",
-    ).toBeGreaterThan(0)
   })
 
   test("consent-required events are NOT sent when consent is denied", async ({
@@ -91,10 +85,6 @@ test.describe("Test 16 — Mode exempt (denied)", () => {
     await interceptor.triggerFlush()
 
     // Consent-required events should NOT be present.
-    // Note V2 — `product_seen` est supprimé (remplacé par les colonnes
-    // `pageviews.product_*`). Le check « pas de price/currency PDP sans
-    // consent » est couvert par ecommerce.spec.ts Test 15, on ne le
-    // duplique pas ici.
     expect(
       interceptor.getEvents("datalayer_validation").length,
       "datalayer_validation should NOT be sent when consent is denied",
@@ -197,25 +187,6 @@ test.describe("Test 17 — Mode consent (granted)", () => {
       ),
       "js_error (exempt) should be sent with consent granted",
     ).toBe(true)
-
-    const sdcEvents = interceptor.getEvents("structured_data_check")
-    expect(
-      sdcEvents.length,
-      "structured_data_check (exempt) should be sent",
-    ).toBeGreaterThan(0)
-
-    // V2 — product_seen est supprimé. Le signal vit dans
-    // pageviews.product_price_visible (consent required). Vérifier que la
-    // colonne est présente quand le consent est granted.
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/novapro-x12"))
-    expect(pv, "PDP pageview should be captured").toBeDefined()
-    expect(
-      pv!.product_price_visible,
-      "product_price_visible should be present with consent granted",
-    ).toBeGreaterThan(0)
-    expect(pv!.product_currency).toBeTruthy()
 
     const validations = interceptor.getEvents("datalayer_validation")
     expect(

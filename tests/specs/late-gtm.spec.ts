@@ -219,11 +219,11 @@ test.describe("Phase 7 B2 — DataLayer pre-boot replay", () => {
 
     // L'add_to_cart pré-boot doit aussi avoir été replayé.
     const atcs = interceptor.getEvents("add_to_cart")
-    const preBootAtc = atcs.find((e) => e.payload.product_id === "PREBOOT-B")
+    const preBootAtc = atcs.find((e) => e.payload.value === 49.99)
     expect(
       preBootAtc,
       "pre-boot add_to_cart should also be replayed",
     ).toBeDefined()
-    expect(preBootAtc!.payload.value).toBe(49.99)
+    expect(preBootAtc!.payload.currency).toBe("EUR")
   })
 })

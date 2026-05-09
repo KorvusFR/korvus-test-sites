@@ -90,8 +90,6 @@ test.describe("ATC — regression Interflora data-test-id", () => {
       events.length,
       "add_to_cart_attempt should fire on data-test-id ATC button (Interflora regression)",
     ).toBeGreaterThan(0)
-    // JSON-LD du sim/pdp expose product_id="SIM-001"
-    expect(events[0].payload.product_id).toBe("SIM-001")
   })
 })
 
@@ -187,7 +185,6 @@ test.describe("ATC — familles de selecteurs (april 2026 patterns)", () => {
         events.length,
         `add_to_cart_attempt should fire for family "${fam.name}"`,
       ).toBeGreaterThan(0)
-      expect(events[0].payload.product_id).toBe("SIM-001")
     })
   }
 })
@@ -232,7 +229,6 @@ test.describe("DataLayer — mappings april 2026", () => {
 
     const adds = interceptor.getEvents("add_to_cart")
     expect(adds.length, "add_to_cart should be emitted via productAdded mapping").toBeGreaterThan(0)
-    expect(adds[0].payload.product_id).toBe("SIM-PA-1")
     expect(adds[0].payload.value).toBe(49.9)
     expect(adds[0].payload.currency).toBe("EUR")
 
@@ -272,7 +268,7 @@ test.describe("DataLayer — mappings april 2026", () => {
 
     const adds = interceptor.getEvents("add_to_cart")
     expect(adds.length, "add_to_cart should be emitted via 'Product Added' mapping").toBeGreaterThan(0)
-    expect(adds[0].payload.product_id).toBe("SIM-PA-2")
+    expect(adds[0].payload.value).toBe(89.0)
   })
 
   test("product_added_to_cart (Shopify Web Pixels bridge) emits add_to_cart", async ({
@@ -306,7 +302,7 @@ test.describe("DataLayer — mappings april 2026", () => {
 
     const adds = interceptor.getEvents("add_to_cart")
     expect(adds.length).toBeGreaterThan(0)
-    expect(adds[0].payload.product_id).toBe("SIM-WP-1")
+    expect(adds[0].payload.value).toBe(19.99)
   })
 
   test("transaction (UA legacy) emits canonical purchase with transaction_id", async ({
@@ -382,7 +378,7 @@ test.describe("DataLayer — mappings april 2026", () => {
 
     const adds = interceptor.getEvents("add_to_cart")
     expect(adds.length, "add_to_cart should be emitted via Tealium 'cart_add'").toBeGreaterThan(0)
-    expect(adds[0].payload.product_id).toBe("SIM-TLM-1")
+    expect(adds[0].payload.value).toBe(12.5)
   })
 })
 

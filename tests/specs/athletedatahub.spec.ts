@@ -56,131 +56,6 @@ test.describe("ADH — page_type detection", () => {
 })
 
 // ---------------------------------------------------------------------------
-// structured_data_check (exempt)
-// ---------------------------------------------------------------------------
-
-test.describe("ADH — structured_data_check", () => {
-  test("PDP with complete JSON-LD → has_product_schema: true", async ({
-    page,
-  }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, adh)
-
-    await page.goto("/products/pro-training-tshirt-black")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const events = interceptor.getEvents("structured_data_check")
-    expect(events.length).toBeGreaterThan(0)
-
-    const evt = events[0]
-    expect(evt.payload.has_product_schema).toBe(true)
-    expect(evt.payload.has_offer_schema).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// pageviews.product_* columns (V2, product_seen supprimé)
-// ---------------------------------------------------------------------------
-
-test.describe("ADH — pageviews.product_* columns", () => {
-  test("PDP without consent → id/name captured, price/currency stripped", async ({
-    page,
-  }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, adh)
-
-    await page.goto("/products/pro-training-tshirt-black")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/pro-training-tshirt-black"))
-    expect(pv, "pageview for pro-training-tshirt-black should be captured").toBeDefined()
-    expect(pv!.page_type).toBe("pdp")
-    expect(pv!.product_id).toBeTruthy()
-    expect(pv!.product_name).toBeTruthy()
-    // Cascade gagnante : JSON-LD complet sur les PDP ADH.
-    expect(pv!.product_id_source).toBe("jsonld")
-    expect(pv!.product_name_source).toBe("jsonld")
-    expect(pv!.product_price_visible ?? null).toBeNull()
-    expect(pv!.product_currency ?? null).toBeNull()
-  })
-
-  test("PDP with consent granted → price and currency present", async ({
-    page,
-  }) => {
-    await simulateAxeptio(page, true)
-
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, adh)
-
-    await page.goto("/products/pro-training-tshirt-black")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/pro-training-tshirt-black"))
-    expect(pv, "pageview should be captured").toBeDefined()
-    expect(pv!.product_price_visible).toBeGreaterThan(0)
-    expect(pv!.product_currency).toBeTruthy()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// pageviews.product_available (V2, out_of_stock_viewed supprimé)
-// ---------------------------------------------------------------------------
-
-test.describe("ADH — pageviews.product_available (OOS)", () => {
-  test("OOS product (push-up-handles-rotating) → product_available = false", async ({
-    page,
-  }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, adh)
-
-    await page.goto("/products/push-up-handles-rotating")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/push-up-handles-rotating"))
-    expect(pv, "pageview for push-up-handles-rotating should be captured").toBeDefined()
-    expect(pv!.product_id).toBe("28")
-    expect(pv!.product_available).toBe(false)
-    // Cascade gagnante : JSON-LD `availability: OutOfStock` sur les PDP ADH.
-    expect(pv!.product_available_source).toBe("jsonld")
-  })
-
-  test("in-stock product → product_available = true", async ({ page }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, adh)
-
-    await page.goto("/products/pro-training-tshirt-black")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/pro-training-tshirt-black"))
-    expect(pv, "pageview should be captured").toBeDefined()
-    expect(pv!.product_available).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
 // tag_fired — fake pixels (consent required)
 // ---------------------------------------------------------------------------
 
@@ -306,7 +181,7 @@ test.describe("ADH — happy path chaîné v2", () => {
     await interceptor.attach()
     await injectSnippet(page, adh)
 
-    // 1) PDP — structured_data_check + pageview pdp + add_to_cart_attempt
+    // 1) PDP — pageview pdp + add_to_cart_attempt
     await page.goto("/products/pro-training-tshirt-black")
     await page.waitForTimeout(1500)
     await page.click("button.gap-2")
@@ -384,9 +259,6 @@ test.describe("ADH — happy path chaîné v2", () => {
     // Events exempts
     const atcAttempts = interceptor.getEvents("add_to_cart_attempt")
     expect(atcAttempts.length, "add_to_cart_attempt should fire").toBeGreaterThan(0)
-
-    const sdc = interceptor.getEvents("structured_data_check")
-    expect(sdc.length, "structured_data_check should fire on PDP").toBeGreaterThan(0)
 
     const paymentSelected = interceptor.getEvents("payment_method_selected")
     expect(

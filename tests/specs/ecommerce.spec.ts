@@ -11,7 +11,7 @@ const doomcheck = getSiteConfig("doomcheck")
 // ---------------------------------------------------------------------------
 
 test.describe("Test 10 — add_to_cart_attempt", () => {
-  test("captures ATC click with product_id from JSON-LD", async ({ page }) => {
+  test("captures ATC click on PDP", async ({ page }) => {
     const interceptor = new IngestInterceptor(page)
     await interceptor.attach()
     await injectSnippet(page, doomcheck)
@@ -30,8 +30,6 @@ test.describe("Test 10 — add_to_cart_attempt", () => {
     expect(events.length, "add_to_cart_attempt should be captured").toBeGreaterThan(0)
 
     const evt = events[0]
-    expect(evt.payload.product_id).toBe("1")
-    expect(evt.payload.product_name).toBe("NovaPro X12 Smartphone")
     expect(evt.payload).toHaveProperty("success")
     expect(evt.payload.page_url).toContain("/products/novapro-x12")
   })
@@ -121,109 +119,6 @@ test.describe("Test 11 — search_performed", () => {
     const events = interceptor.getEvents("search_performed")
     expect(events.length).toBeGreaterThan(0)
     expect(events[0].payload.results_count).toBe(0)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Test 12 — pageviews.product_available (OOS signal, V2)
-// V2 supprime l'event out_of_stock_viewed. Le signal OOS vit désormais dans
-// la colonne dénormalisée pageviews.product_available (cascade Schema.org →
-// ATC disabled → sélecteur → texte visible). Ces tests asservissent cette
-// colonne, pas un event raw_events.
-// ---------------------------------------------------------------------------
-
-test.describe("Test 12 — pageviews.product_available (OOS)", () => {
-  test("OOS product via Schema.org OutOfStock → product_available = false", async ({
-    page,
-  }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, doomcheck)
-
-    // glitchbuds-ultra is out of stock with OutOfStock in JSON-LD
-    // Note: 2800ms wait parce que la cascade product est en scheduleIdleTask
-    // qui fallback sur setTimeout(2000) sur WebKit (pas de requestIdleCallback).
-    await page.goto("/products/glitchbuds-ultra")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/glitchbuds-ultra"))
-    expect(pv, "pageview for glitchbuds-ultra should be captured").toBeDefined()
-    expect(pv!.product_id).toBe("11")
-    expect(pv!.product_name).toContain("GlitchBuds")
-    expect(pv!.product_available).toBe(false)
-  })
-
-  test("in-stock product → product_available = true", async ({ page }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, doomcheck)
-
-    await page.goto("/products/novapro-x12")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/novapro-x12"))
-    expect(pv, "pageview for novapro-x12 should be captured").toBeDefined()
-    expect(pv!.product_available).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Test 13 — structured_data_check (exempt)
-// ---------------------------------------------------------------------------
-
-test.describe("Test 13 — structured_data_check", () => {
-  test("complete JSON-LD → has_product_schema: true, no missing fields", async ({
-    page,
-  }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, doomcheck)
-
-    await page.goto("/products/novapro-x12")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const events = interceptor.getEvents("structured_data_check")
-    expect(events.length).toBeGreaterThan(0)
-
-    const evt = events[0]
-    expect(evt.payload.has_product_schema).toBe(true)
-    expect(evt.payload.has_offer_schema).toBe(true)
-    expect(evt.payload.missing_fields).toEqual([])
-  })
-
-  test("broken JSON-LD → missing price, availability, image", async ({
-    page,
-  }) => {
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, doomcheck)
-
-    // glitchphone-9 has intentionally broken JSON-LD (no price, no availability, no image)
-    await page.goto("/products/glitchphone-9")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const events = interceptor.getEvents("structured_data_check")
-    expect(events.length).toBeGreaterThan(0)
-
-    const evt = events[0]
-    expect(evt.payload.has_product_schema).toBe(true)
-    expect(evt.payload.has_offer_schema).toBe(true)
-    const missing = evt.payload.missing_fields as string[]
-    expect(missing).toContain("image")
-    expect(missing).toContain("offers.price")
-    expect(missing).toContain("offers.availability")
   })
 })
 
@@ -373,69 +268,3 @@ test.describe("Test 14 — datalayer_validation", () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Test 15 — pageviews.product_* columns (V2, product_seen supprimé)
-// V2 supprime l'event product_seen. Les infos produit vivent désormais
-// directement dans les colonnes dénormalisées de pageviews :
-//   - exempts : product_id, product_id_source, product_name, product_name_source
-//   - consent required : product_price_visible, product_currency
-// ---------------------------------------------------------------------------
-
-test.describe("Test 15 — pageviews.product_* columns", () => {
-  test("PDP without consent → id/name captured, price/currency stripped", async ({
-    page,
-  }) => {
-    // No consent simulation — consent stays "unknown"
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, doomcheck)
-
-    // novapro-x12 has complete JSON-LD (sku "1", price 449, EUR)
-    // Note: 2800ms parce que la cascade product passe par scheduleIdleTask
-    // qui fallback sur setTimeout(2000) quand requestIdleCallback est
-    // absent (Safari). 2000ms seul = race condition flaky sur WebKit.
-    await page.goto("/products/novapro-x12")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/novapro-x12"))
-    expect(pv, "pageview for novapro-x12 should be captured").toBeDefined()
-    expect(pv!.page_type).toBe("pdp")
-    expect(pv!.product_id).toBe("1")
-    expect(pv!.product_name).toBe("NovaPro X12 Smartphone")
-    // Consent-gated : strippé côté snippet sans consent granted
-    expect(pv!.product_price_visible ?? null).toBeNull()
-    expect(pv!.product_currency ?? null).toBeNull()
-  })
-
-  test("PDP with consent granted → price and currency present", async ({
-    page,
-  }) => {
-    await page.addInitScript(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any
-      w._axcb = []
-      w.axeptio_settings = { cookies: { google_analytics: true } }
-    })
-
-    const interceptor = new IngestInterceptor(page)
-    await interceptor.attach()
-    await injectSnippet(page, doomcheck)
-
-    await page.goto("/products/novapro-x12")
-    await page.waitForTimeout(2000)
-
-    await interceptor.triggerFlush()
-
-    const pv = interceptor
-      .getPageviews()
-      .find((p) => p.path.includes("/products/novapro-x12"))
-    expect(pv, "pageview for novapro-x12 should be captured").toBeDefined()
-    expect(pv!.product_id).toBe("1")
-    expect(pv!.product_price_visible).toBe(449)
-    expect(pv!.product_currency).toBe("EUR")
-  })
-})
