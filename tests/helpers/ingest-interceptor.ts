@@ -158,6 +158,21 @@ export class IngestInterceptor {
 
       try {
         const body = request.postDataJSON() as BatchPayload
+
+        const invalidField = IngestInterceptor.findInvalidUuidField(body)
+        if (invalidField) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[IngestInterceptor] POST /api/ingest invalid UUID (${invalidField}) — responding 400 to fail the spec loudly.`,
+          )
+          await route.fulfill({
+            status: 400,
+            contentType: "application/json",
+            body: JSON.stringify({ error: `Invalid UUID: ${invalidField}` }),
+          })
+          return
+        }
+
         this.batches.push(body)
 
         // Resolve any pending waitForBatch promises
@@ -292,6 +307,39 @@ export class IngestInterceptor {
         configurable: true,
       })
     })
+  }
+
+  // --- UUID validation — mirrors server-side Zod (z.string().uuid()) ---
+
+  private static readonly UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+  private static isUuid(v: unknown): boolean {
+    return typeof v === "string" && IngestInterceptor.UUID_RE.test(v)
+  }
+
+  private static findInvalidUuidField(body: BatchPayload): string | null {
+    if (!IngestInterceptor.isUuid(body.session?.id)) return "session.id"
+    if (!IngestInterceptor.isUuid(body.session?.website_id))
+      return "session.website_id"
+    for (let i = 0; i < (body.pageviews?.length ?? 0); i++) {
+      const pv = body.pageviews[i]
+      if (!IngestInterceptor.isUuid(pv.id)) return `pageviews[${i}].id`
+      if (!IngestInterceptor.isUuid(pv.session_id))
+        return `pageviews[${i}].session_id`
+      if (!IngestInterceptor.isUuid(pv.website_id))
+        return `pageviews[${i}].website_id`
+    }
+    for (let i = 0; i < (body.events?.length ?? 0); i++) {
+      const ev = body.events[i]
+      if (!IngestInterceptor.isUuid(ev.pageview_id))
+        return `events[${i}].pageview_id`
+      if (!IngestInterceptor.isUuid(ev.session_id))
+        return `events[${i}].session_id`
+      if (!IngestInterceptor.isUuid(ev.website_id))
+        return `events[${i}].website_id`
+    }
+    return null
   }
 
   /** Reset all stored batches and pending resolvers. */
