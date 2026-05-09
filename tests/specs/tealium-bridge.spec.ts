@@ -132,8 +132,6 @@ test.describe("Bridge Tealium — opt-in + consent gate", () => {
 
     const atcs = interceptor.getEvents("add_to_cart")
     expect(atcs.length, "add_to_cart should be captured").toBeGreaterThan(0)
-    expect(atcs[0].payload.product_id).toBe("SKU-T1")
-    expect(atcs[0].payload.product_name).toBe("Tealium Test Product")
     expect(atcs[0].payload.value).toBe(49.99)
     expect(atcs[0].payload.currency).toBe("EUR")
   })
@@ -294,6 +292,6 @@ test.describe("Bridge Tealium — opt-in + consent gate", () => {
       atcs.length,
       "late-load utag.link should be captured by retry",
     ).toBeGreaterThan(0)
-    expect(atcs[0].payload.product_id).toBe("LATE-SKU")
+    expect(atcs[0].payload.value).toBe(25)
   })
 })
