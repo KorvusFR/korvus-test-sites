@@ -84,7 +84,14 @@ test.describe("purchase_observed — fallback DOM exempt CNIL", () => {
     expect(ev.payload).not.toHaveProperty("transaction_id")
     expect(ev.payload).not.toHaveProperty("orderNumber")
     expect(ev.payload).not.toHaveProperty("orderTotal")
+    // `_diag` ajoute dans le snippet par korvusadmin/korvus@4640afb (purchase_observed
+    // seuil URL composee + persistance SPA) : champ de debug observability cote
+    // snippet, present mais sans PII (cf. spec V2 purchase_observed dans
+    // .claude/rules/schema-collecte.md). On l'ajoute a la liste autorisee pour
+    // matcher le contrat snippet a jour ; les assertions CNIL "ni value ni
+    // currency ni transaction_id" plus haut restent les sentinels critiques.
     expect(Object.keys(ev.payload).sort()).toEqual([
+      "_diag",
       "client_ts",
       "has_jsonld",
       "has_keyword",

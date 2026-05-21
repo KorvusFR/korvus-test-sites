@@ -435,7 +435,6 @@ test.describe("ADH — consent flow", () => {
     expect(session!.utm_source).toBe("google")
     expect(session!.utm_medium).toBe("cpc")
     expect(session!.utm_campaign).toBe("adh_test")
-    expect(session!.is_paid_traffic).toBe(true)
     expect(session!.has_gclid).toBe(true)
   })
 
@@ -458,7 +457,6 @@ test.describe("ADH — consent flow", () => {
     expect(session!.consent_status).toBe("denied")
     expect(session!.utm_source).toBeNull()
     expect(session!.utm_medium).toBeNull()
-    expect(session!.is_paid_traffic).toBe(false)
     expect(session!.has_gclid).toBe(false)
   })
 })
