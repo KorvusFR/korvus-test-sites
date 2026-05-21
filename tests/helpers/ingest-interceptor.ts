@@ -2,16 +2,15 @@ import type { Page, Route } from "@playwright/test"
 
 // --- Types mirrored from platform/snippet/src/types.ts (decoupled from snippet build) ---
 //
-// Audit 2026-04-15 (B4) — ce mirror avait dérivé : `landing_url` au lieu de
-// `landing_path`, `client_batch_id` absent, pas de `created_at` sur session
-// ni pageview (audit B1). Conséquence : les specs qui lisaient les types via
-// ce helper n'avaient aucun moyen d'asserter sur le vrai contrat serveur.
+// Audit 2026-04-15 (B4) — ce mirror avait dérivé sur plusieurs champs
+// (`client_batch_id` absent, pas de `created_at` sur session ni pageview —
+// audit B1). Conséquence : les specs qui lisaient les types via ce helper
+// n'avaient aucun moyen d'asserter sur le vrai contrat serveur.
 //
 // Règle : à chaque ajout d'un champ dans platform/snippet/src/types.ts qui
 // est consommable via les helpers de test, **mettre à jour ce mirror**. Le
 // sentinel grep `platform/tests/unit/snippet/ingest-interceptor-mirror.test.ts`
-// fail si `landing_url` réapparaît ou si `client_batch_id` / `created_at`
-// disparaissent.
+// fail si `client_batch_id` / `created_at` disparaissent.
 
 export interface SessionPayload {
   id: string
@@ -20,12 +19,9 @@ export interface SessionPayload {
   consent_status: "granted" | "denied" | "unknown"
   referrer_domain: string | null
   connection_type: string | null
-  landing_path: string | null
-  landing_page_type: string | null
   utm_source: string | null
   utm_medium: string | null
   utm_campaign: string | null
-  is_paid_traffic: boolean
   has_fbclid: boolean
   has_gclid: boolean
   has_ttclid: boolean

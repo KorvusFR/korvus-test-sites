@@ -349,7 +349,6 @@ test.describe("TGD — consent flow", () => {
     expect(session!.utm_source).toBe("linkedin")
     expect(session!.utm_medium).toBe("cpc")
     expect(session!.utm_campaign).toBe("b2b_security")
-    expect(session!.is_paid_traffic).toBe(true)
     expect(session!.has_fbclid).toBe(true)
   })
 
@@ -369,7 +368,6 @@ test.describe("TGD — consent flow", () => {
     expect(session).toBeDefined()
     expect(session!.consent_status).toBe("denied")
     expect(session!.utm_source).toBeNull()
-    expect(session!.is_paid_traffic).toBe(false)
     expect(session!.has_fbclid).toBe(false)
   })
 })
