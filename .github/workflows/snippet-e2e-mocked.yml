@@ -6,7 +6,7 @@ name: Snippet E2E (mocked)
 #
 # Repo layout:
 #   - this repo (korvus-test-sites) is checked out at path: test_website
-#   - korvusadmin/korvus is checked out at path: platform via PAT, so the
+#   - KorvusFR/korvus is checked out at path: platform via PAT, so the
 #     test helpers can read platform/snippet/dist/korvus.min.js after build.
 # This reproduces the dual-repo layout that tests/global-setup.ts and
 # tests/helpers/inject-snippet.ts assume (they lookup
@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       platform_ref:
-        description: "Ref/SHA of korvusadmin/korvus to checkout (default: main)"
+        description: "Ref/SHA of KorvusFR/korvus to checkout (default: main)"
         required: false
         default: "main"
 
@@ -79,10 +79,10 @@ jobs:
         with:
           path: test_website
 
-      - name: Checkout platform (korvusadmin/korvus)
+      - name: Checkout platform (KorvusFR/korvus)
         uses: actions/checkout@v5
         with:
-          repository: korvusadmin/korvus
+          repository: KorvusFR/korvus
           path: platform
           token: ${{ secrets.KORVUS_PLATFORM_PAT }}
           ref: ${{ github.event.client_payload.platform_sha || github.event.inputs.platform_ref || 'main' }}
