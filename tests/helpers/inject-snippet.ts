@@ -35,7 +35,11 @@ const SITE_DEFAULTS: Record<string, SnippetConfig> = {
 
 // --- Snippet code (read once at module load) ---
 
-const SNIPPET_PATH = path.resolve(
+// Default snippet path: relative aux checkout principal `code/platform/snippet/
+// dist/korvus.min.js`. Override possible via env var `KORVUS_SNIPPET_PATH` pour
+// pointer vers un worktree platform en cours de developpement (ex. tests E2E
+// dans un chantier feat/breadcrumbs avant merge platform).
+const DEFAULT_SNIPPET_PATH = path.resolve(
   __dirname,
   "..",
   "..",
@@ -46,11 +50,17 @@ const SNIPPET_PATH = path.resolve(
   "korvus.min.js",
 )
 
+function resolveSnippetPath(): string {
+  const override = process.env.KORVUS_SNIPPET_PATH
+  if (override && override.length > 0) return override
+  return DEFAULT_SNIPPET_PATH
+}
+
 let snippetCode: string | null = null
 
 function getSnippetCode(): string {
   if (snippetCode === null) {
-    snippetCode = fs.readFileSync(SNIPPET_PATH, "utf-8")
+    snippetCode = fs.readFileSync(resolveSnippetPath(), "utf-8")
   }
   return snippetCode
 }
