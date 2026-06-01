@@ -276,6 +276,49 @@ export class IngestInterceptor {
   }
 
   /**
+   * Deterministic wait: resolves as soon as every `payload.message` in
+   * `messages` has been seen across all received batches, rejects on timeout.
+   * Replaces temporal polling — the resolution is driven by batch arrival, not
+   * a fixed sleep, so a large flush split across several POSTs (or an early
+   * flush + a final flush) is awaited correctly without flakiness.
+   */
+  async waitForEventMessages(
+    messages: string[],
+    timeout = 35_000,
+  ): Promise<void> {
+    const need = new Set(messages)
+    const haveAll = (): boolean => {
+      const seen = new Set(
+        this.getEvents().map((e) => e.payload.message as string),
+      )
+      for (const m of need) if (!seen.has(m)) return false
+      return true
+    }
+    if (haveAll()) return
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const remaining = deadline - Date.now()
+      if (remaining <= 0) break
+      try {
+        await this.waitForBatch(remaining)
+      } catch {
+        break // timeout from waitForBatch
+      }
+      if (haveAll()) return
+    }
+    throw new Error(
+      `waitForEventMessages: ${
+        [...need].filter(
+          (m) =>
+            !new Set(
+              this.getEvents().map((e) => e.payload.message as string),
+            ).has(m),
+        ).length
+      } of ${messages.length} expected messages missing within ${timeout}ms`,
+    )
+  }
+
+  /**
    * Force the snippet to flush its buffer by simulating visibilitychange → hidden.
    * This avoids waiting the full 30s batch interval.
    * Restores visible state afterward.
