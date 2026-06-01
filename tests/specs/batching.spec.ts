@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test"
-import type { Route } from "@playwright/test"
 import { IngestInterceptor } from "../helpers/ingest-interceptor"
 import { injectSnippet } from "../helpers/inject-snippet"
 
@@ -194,22 +193,32 @@ test.describe("Test 19 — Batching", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("Test 20 — Buffer overflow", () => {
-  test("buffer caps at 100 events, drops oldest", async ({
+  // Regression garde du bug keepalive 64 KB (PR #100) : un flush > ~64 KB etait
+  // chunke et tous les chunks partaient en fetch(keepalive:true) simultanes ->
+  // budget keepalive GLOBAL navigateur depasse -> seul le 1er chunk passait,
+  // le reste perdu en silence. L'ancienne assertion `events.length <= 100`
+  // (cap reel = 50) ne testait RIEN -> le bug vivait derriere un test vert.
+  //
+  // Invariant fort teste ici : un gros flush (50 events distincts ~128 KB,
+  // bien au-dessus du budget keepalive 48 KB) livre les 50 plus recents
+  // (fenetre [100..149]) avec ZERO perte et ZERO doublon, et ne laisse rien
+  // dans la retry queue. Le flush anticipe (4.B) peut en plus rescuer des
+  // events plus anciens (pre-cap) -> le total peut depasser 50, c'est
+  // attendu ; ce qui ne doit JAMAIS arriver c'est de perdre un event de la
+  // fenetre finale.
+  test("gros flush — livre les 50 events les plus recents avec 0 perte (garde keepalive 64 KB)", async ({
     page,
     browserName,
   }) => {
-    // Firefox : ce test combine `page.route(blocker)` + `page.unroute` +
-    // synthetic `ErrorEvent` dispatch. Sous Firefox, l'ordre de tear-down
-    // des route handlers Playwright diffère de Chromium/WebKit — après
-    // unroute, le batch ne retrouve pas toujours l'interceptor, résultat
-    // `events.length === 0` alors que le snippet a bien bufferisé. La
-    // logique buffer-cap est couverte au niveau unit dans
-    // `tests/unit/snippet/buffer.test.ts` (platform), donc ce spec E2E
-    // vaut comme smoke sur Chromium/WebKit où le harness est stable.
-    // Audit 2026-04-15 (B6b).
+    test.setTimeout(60_000)
+    // Firefox : keepalive est ignore (deja plain fetch) -> ce projet ne teste
+    // PAS le chemin critique keepalive, et le tear-down route/synthetic
+    // ErrorEvent y est instable. Le chemin keepalive est valide sur
+    // Chromium + WebKit (desktop & mobile). Cf. garde unit
+    // platform/tests/unit/snippet/transport-batch-contract.test.ts.
     test.skip(
       browserName === "firefox",
-      "Firefox: page.route/unroute teardown race avec synthetic ErrorEvent dispatch — couverture assurée par unit buffer tests",
+      "Firefox: keepalive ignore (plain fetch) — ne teste pas le chemin critique ; couvert Chromium/WebKit + unit",
     )
 
     const interceptor = new IngestInterceptor(page)
@@ -219,49 +228,91 @@ test.describe("Test 20 — Buffer overflow", () => {
     await page.goto("/")
     await page.waitForTimeout(500)
 
-    // Block ingest endpoint (never respond — takes priority over interceptor)
-    const blocker = async (_route: Route) => {
-      /* intentionally never fulfill/abort — request hangs */
-    }
-    await page.route("**/api/ingest", blocker)
-
-    // Generate 150 distinct errors rapidly (unique dedupKey per error)
+    // 150 erreurs DISTINCTES (signature unique -> chacune porte un snapshot
+    // breadcrumbs a sa 1ere occurrence -> batch lourd). Le cap MAX_EVENTS=50
+    // garde les 50 plus recentes = [100..149]. Pas de blocage de l'endpoint :
+    // on laisse le snippet livrer naturellement (flush anticipe eventuel +
+    // flush final), on verifie ensuite l'invariant lossless sur la fenetre.
     await page.evaluate(() => {
       for (let i = 0; i < 150; i++) {
-        window.dispatchEvent(new ErrorEvent("error", {
-          message: `Overflow error ${i}`,
-          filename: "test.js",
-          lineno: i,
-          colno: 0,
-          error: new Error(`Overflow error ${i}`),
-        }))
+        window.dispatchEvent(
+          new ErrorEvent("error", {
+            message: `Overflow error ${i}`,
+            filename: "test.js",
+            lineno: i,
+            colno: 0,
+            error: new Error(`Overflow error ${i}`),
+          }),
+        )
       }
     })
 
-    // Unblock endpoint (only removes our blocker, interceptor handler remains)
-    await page.unroute("**/api/ingest", blocker)
+    // Flush final : visibilitychange -> hidden (le snippet flush le buffer).
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", {
+        value: "hidden",
+        writable: true,
+        configurable: true,
+      })
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
 
-    // Flush — now the interceptor receives the batch
-    await interceptor.triggerFlush()
+    // Attente DETERMINISTE : on attend que les 50 events de la fenetre finale
+    // soient tous arrives (chunks multiples inclus), pas un sleep arbitraire.
+    const windowMessages = Array.from(
+      { length: 50 },
+      (_, k) => `Overflow error ${100 + k}`,
+    )
+    await interceptor.waitForEventMessages(windowMessages, 20_000)
 
     const events = interceptor.getEvents()
+    const messages = events.map((e) => e.payload.message as string)
+
+    // 1) ZERO perte : tous les events [100..149] sont presents.
+    for (let i = 100; i < 150; i++) {
+      expect(
+        messages,
+        `event "Overflow error ${i}" doit etre present (0 perte sur la fenetre finale)`,
+      ).toContain(`Overflow error ${i}`)
+    }
+
+    // 2) ZERO doublon : chaque event de la fenetre arrive exactement une fois
+    // (pas de double-send entre chunks / retry).
+    for (let i = 100; i < 150; i++) {
+      const msg = `Overflow error ${i}`
+      expect(
+        messages.filter((m) => m === msg).length,
+        `event "${msg}" ne doit arriver qu'une fois`,
+      ).toBe(1)
+    }
+
+    // 3) La retry queue est vide -> rien n'a ete perdu/coince en transit.
+    const retryQueueEvents = await page.evaluate(() => {
+      try {
+        const raw = sessionStorage.getItem("korvus_retry_v1")
+        if (!raw) return 0
+        const q = JSON.parse(raw) as Array<{
+          batch?: { events?: unknown[] }
+        }>
+        return q.reduce((n, e) => n + (e.batch?.events?.length ?? 0), 0)
+      } catch {
+        return -1
+      }
+    })
+    expect(retryQueueEvents, "retry queue doit etre vide apres flush").toBe(0)
+
+    // 4) Robustesse anti-vacuite (4.F.4) : la fenetre [100..149] doit reellement
+    // peser plus que le budget keepalive (48 KB) -> le chemin overflow/chunking
+    // a bien ete exerce. Si un futur rendu doomcheck rapetissait les events au
+    // point que tout tienne en 1 requete, ce test echoue franchement au lieu
+    // de devenir un faux-vert. KEEPALIVE_BUDGET = 48_000 (cf. transport.ts).
+    const windowBytes = events
+      .filter((e) => windowMessages.includes(e.payload.message as string))
+      .reduce((sum, e) => sum + JSON.stringify(e).length, 0)
     expect(
-      events.length,
-      "Buffer should cap at 100 events max",
-    ).toBeLessThanOrEqual(100)
-    expect(events.length).toBeGreaterThan(0)
-
-    // Oldest events should have been dropped
-    const hasFirst = events.some(
-      (e) => e.payload.message === "Overflow error 0",
-    )
-    expect(hasFirst, "Oldest event (0) should be dropped").toBe(false)
-
-    // Newest events should be present
-    const hasLast = events.some(
-      (e) => e.payload.message === "Overflow error 149",
-    )
-    expect(hasLast, "Newest event (149) should be present").toBe(true)
+      windowBytes,
+      "la fenetre [100..149] doit depasser le budget keepalive (sinon le test n'exerce plus l'overflow)",
+    ).toBeGreaterThan(48_000)
   })
 })
 
