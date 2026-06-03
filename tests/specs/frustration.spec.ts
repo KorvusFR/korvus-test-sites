@@ -18,6 +18,14 @@ import { injectSnippet } from "../helpers/inject-snippet"
 // noeuds ajoutes apres le boot (contrairement a add_to_cart qui lit le DOM une
 // fois a l'init). On laisse 600ms apres le clic pour que le timer dead_click
 // (500ms, pas de navigation = pas de reponse forte) tire.
+//
+// Clics DISPATCHES programmatiquement (MouseEvent bubblant via page.evaluate),
+// PAS page.click : le snippet ecoute en delegation capture-phase sur document,
+// donc un event synthetique exerce exactement le meme code. page.click exige
+// l'actionnabilite (visibilite/scroll/pas d'overlay) et echoue sur mobile
+// (Pixel 7) quand l'element injecte est hors-fold ou couvert — et la cible
+// "trop petite" (18px) est par nature sous le seuil tactile. Pattern documente
+// dans .claude/rules/tests-snippet.md (custom elements / delegated click).
 
 const BOOT_MS = 600
 const DEAD_CLICK_MS = 700
@@ -41,8 +49,8 @@ test.describe("C0b.1/.2 — cursor:pointer + bucket de taille au clic", () => {
         "cursor:pointer;width:240px;height:60px;background:#eee"
       d.textContent = "Looks clickable"
       document.body.appendChild(d)
+      d.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
-    await page.click("#kv-fake-affordance")
     await page.waitForTimeout(DEAD_CLICK_MS)
     await interceptor.triggerFlush()
 
@@ -72,8 +80,8 @@ test.describe("C0b.1/.2 — cursor:pointer + bucket de taille au clic", () => {
       b.style.cssText = "cursor:pointer;width:18px;height:18px;padding:0;border:0"
       b.textContent = "x"
       document.body.appendChild(b)
+      b.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
-    await page.click("#kv-tiny")
     await page.waitForTimeout(DEAD_CLICK_MS)
     await interceptor.triggerFlush()
 
@@ -108,11 +116,13 @@ test.describe("C0b.3 — field_friction (friction de formulaire par champ)", () 
 
     // Struggle realiste : editer (change avant blur) -> quitter -> revenir ->
     // editer -> quitter. Le change natif fire avant le blur, donc au 2e blur les
-    // compteurs sont complets et l'emission eager tire.
+    // compteurs sont complets et l'emission eager tire. focus/change/blur
+    // programmatiques (les listeners delegues focusin/focusout/change captent
+    // les events synthetiques) -> robuste mobile, pas d'actionnabilite requise.
     const editAndLeave = async () => {
-      await page.focus("#kv-field")
       await page.evaluate(() => {
         const f = document.getElementById("kv-field") as HTMLInputElement
+        f.focus()
         f.dispatchEvent(new Event("change", { bubbles: true }))
         f.blur()
       })
@@ -150,9 +160,9 @@ test.describe("C0b.3 — field_friction (friction de formulaire par champ)", () 
       input.id = "kv-normal-field"
       input.type = "text"
       document.body.appendChild(input)
+      input.focus()
+      input.blur()
     })
-    await page.focus("#kv-normal-field")
-    await page.evaluate(() => (document.getElementById("kv-normal-field") as HTMLInputElement).blur())
     await page.waitForTimeout(50)
     await interceptor.triggerFlush()
 
