@@ -52,6 +52,7 @@ export interface PageviewPayload {
   path: string
   query_params?: Record<string, string> | null
   page_type?: string | null
+  page_type_source?: string | null
   ttfb_ms?: number | null
   fcp_ms?: number | null
   lcp_ms?: number | null
