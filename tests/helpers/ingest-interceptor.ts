@@ -42,6 +42,10 @@ export interface SessionPayload {
   // Union fermee `Platform` cote snippet, reflete large ici (cf. en-tete).
   platform?: string | null
   snippet_version?: string | null
+  // Moteur V2 : config du site (assertion non autoritaire, revision, etat).
+  site_key?: string | null
+  site_config_rev?: string | null
+  site_config_state?: string | null
 }
 
 export interface PageviewPayload {
