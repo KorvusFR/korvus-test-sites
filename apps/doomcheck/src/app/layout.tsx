@@ -47,8 +47,12 @@ export default function RootLayout({
         )}
         <script dangerouslySetInnerHTML={{ __html: "window.dataLayer=window.dataLayer||[];" }} />
         {/* INJECT_SCRIPTS */}
-        <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001013",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"https://app.korvus.fr/api/ingest",platform:"custom"};` }} />
-        <script src="https://cdn.korvus.fr/v1/korvus.min.js" defer />
+        {process.env.NODE_ENV === "production" && (
+          <>
+            <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001013",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"https://app.korvus.fr/api/ingest",platform:"custom"};` }} />
+            <script src="https://cdn.korvus.fr/v1/korvus.min.js" defer />
+          </>
+        )}
       </head>
       <body className="min-h-screen flex flex-col bg-doom-900 text-slate-200 scan-overlay">
         <CartProvider>
