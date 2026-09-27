@@ -26,6 +26,40 @@ npx ts-node runner.ts --site doomcheck
 npx ts-node runner.ts --sessions 50 --concurrency 5
 ```
 
+## Parcours actif de validation V2
+
+Le parcours déterministe des paliers 0 et 2 cible Doomcheck : consentement
+accordé, fiche produit, ajout au panier, code `DOOM20`, paiement simulé et page
+de confirmation. Il n'utilise ni mot de passe Shopify ni moyen de paiement réel.
+
+```bash
+# Vérifier la commande sans ouvrir de navigateur
+npm run active-test -- --site doomcheck --assets published --dry-run
+
+# Smoke pré-déploiement avec l'asset V1 gelé du CDN
+npm run active-test -- --site doomcheck --assets v1-smoke
+
+# Palier 0 : moteur et config de recette. Le script bloque d'abord le moteur
+# publié avec window.__korvus_booted = true, puis charge les deux assets staging.
+npm run active-test -- --site doomcheck --assets staging
+
+# Palier 2 : balise publiée par GTM, sans injection locale
+npm run active-test -- --site doomcheck --assets published
+```
+
+Une réussite se termine par `RESULT active-test PASS`. Le mode `staging` doit
+charger `v2/s-staging/c26715146ef8af54.js` puis
+`v2/korvus.staging.js`. Ne pas l'exécuter avant le déploiement du serveur V2 et
+la génération de ces fichiers. La boutique `taguardian-fr.myshopify.com` n'est
+pas une cible de cette commande : son storefront est protégé et son checkout
+Shopify est hors de portée du moteur de la boutique.
+
+Le mode `published` exige que la balise du site pose `window.__korvus_booted` :
+une balise absente ou en erreur fait échouer le test. Au 2026-09-27, le chemin
+auto-hébergé `/api/snippet/korvus.min.js` de Doomcheck répond 404 ; le mode
+`v1-smoke` sert donc uniquement à valider le scénario avec l'asset V1 gelé du
+CDN jusqu'à la publication de la balise V2.
+
 ## Scenarios
 
 | Scenario | Default % | Description |

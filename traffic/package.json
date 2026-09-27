@@ -4,6 +4,7 @@
   "private": true,
   "description": "Synthetic traffic generator for korvus-test-sites",
   "scripts": {
+    "active-test": "ts-node active-test.ts",
     "typecheck": "tsc --noEmit",
     "run-traffic": "ts-node runner.ts"
   },
