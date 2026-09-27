@@ -42,6 +42,12 @@ export interface SessionPayload {
   // Union fermee `Platform` cote snippet, reflete large ici (cf. en-tete).
   platform?: string | null
   snippet_version?: string | null
+  // Config du site, moteur V2 (lot V2-E1) : `site_key` assertion non
+  // autoritaire, `site_config_rev` sha256 du config publie, `site_config_state`
+  // applied | absent | invalid (union fermee cote snippet, refletee large ici).
+  site_key?: string | null
+  site_config_rev?: string | null
+  site_config_state?: string | null
 }
 
 export interface PageviewPayload {
@@ -52,6 +58,12 @@ export interface PageviewPayload {
   path: string
   query_params?: Record<string, string> | null
   page_type?: string | null
+  // Provenance du type de page (P0c ; `site_url` / `site_dom` : regle de la
+  // config du site, moteur V2), type natif s'il differe de l'effectif et etat
+  // de la regle (V2-EF2). Unions fermees cote snippet, refletees large ici.
+  page_type_source?: string | null
+  native_page_type?: string | null
+  site_rule_state?: string | null
   ttfb_ms?: number | null
   fcp_ms?: number | null
   lcp_ms?: number | null
