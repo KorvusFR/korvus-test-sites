@@ -8,6 +8,3 @@ tests/test-results/
 
 # Contexte Claude Code (local uniquement, repo public a venir)
 .claude/
-
-# configs V2 compilees pour la recette (tests/scripts/compile-v2-site-configs.ts)
-tests/.v2-site-configs/

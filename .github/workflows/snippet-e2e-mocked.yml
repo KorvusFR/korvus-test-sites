@@ -125,12 +125,6 @@ jobs:
         working-directory: platform
         run: npm run snippet:build
 
-      # Moteur V2 : chaque site de test est charge avec sa config V2, comme un
-      # vrai client (config posee avant le moteur par tests/helpers/inject-snippet.ts).
-      - name: Compile V2 site configs for the test sites
-        working-directory: platform
-        run: npx tsx ../test_website/tests/scripts/compile-v2-site-configs.ts ../test_website/tests/.v2-site-configs
-
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
