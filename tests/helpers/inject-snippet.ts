@@ -118,9 +118,34 @@ export async function injectSnippet(
     ;(window as any).__korvus = cfg
   }, config)
 
+  // Moteur V2 : la config du site est posee AVANT le moteur, comme le fait la
+  // balise V2 (fichier v2/s/<site_key>.js charge avant v2/korvus.min.js). Le
+  // moteur la lit puis la retire a son evaluation ; le V1 l'ignore.
+  const siteConfig = getV2SiteConfig(config.websiteId)
+  if (siteConfig !== null) {
+    await page.addInitScript((published: unknown) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(window as any).__korvusSite = published
+    }, siteConfig)
+  }
+
   // Inject the snippet code — readConfig() runs synchronously at eval time
   const code = getSnippetCode()
   await page.addInitScript(code)
+}
+
+// --- Config V2 du site (compilee par tests/scripts/compile-v2-site-configs.ts) ---
+
+const DEFAULT_V2_SITE_CONFIGS_DIR = path.resolve(__dirname, "..", ".v2-site-configs")
+const v2SiteConfigCache = new Map<string, unknown | null>()
+
+function getV2SiteConfig(websiteId: string): unknown | null {
+  if (!v2SiteConfigCache.has(websiteId)) {
+    const dir = process.env.KORVUS_V2_SITE_CONFIGS_DIR || DEFAULT_V2_SITE_CONFIGS_DIR
+    const file = path.join(dir, `${websiteId}.json`)
+    v2SiteConfigCache.set(websiteId, fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf-8")) : null)
+  }
+  return v2SiteConfigCache.get(websiteId) ?? null
 }
 
 /**
