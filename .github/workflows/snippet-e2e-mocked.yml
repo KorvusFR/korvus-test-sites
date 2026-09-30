@@ -30,9 +30,9 @@ on:
   workflow_dispatch:
     inputs:
       platform_ref:
-        description: "Ref/SHA of KorvusFR/korvus to checkout (default: main)"
+        description: "Ref/SHA of KorvusFR/korvus to checkout (default: v1.26.0, the frozen V1 engine)"
         required: false
-        default: "main"
+        default: "v1.26.0"
 
 concurrency:
   group: snippet-e2e-${{ github.ref }}
@@ -81,7 +81,11 @@ jobs:
           repository: KorvusFR/korvus
           path: platform
           token: ${{ secrets.KORVUS_PLATFORM_PAT }}
-          ref: ${{ github.event.inputs.platform_ref || 'main' }}
+          # Non-regression du moteur V1 gele (decision PL du 2026-09-30) : par
+          # defaut, le snippet est construit depuis le tag v1.26.0, celui que
+          # chargent tous les clients. Le moteur V2 a sa propre recette dans
+          # platform (tests/e2e/v2-ef2-recette.spec.ts), qui garde sa release.
+          ref: ${{ github.event.inputs.platform_ref || 'v1.26.0' }}
 
       - name: Setup Node 24
         uses: actions/setup-node@v4
