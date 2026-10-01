@@ -191,6 +191,13 @@ async function runSession(plan: SessionPlan, dry: boolean): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     log(label, `ERROR  ${msg}`);
   } finally {
+    // Quitter la page comme un visiteur : c'est le pagehide qui fait partir le
+    // dernier lot du snippet. Fermer le contexte directement ne l'envoie pas,
+    // et la fin de session (panier, checkout, achat) n'arrive jamais en base.
+    if (!dry) {
+      await page.goto("about:blank").catch(() => {});
+      await page.waitForTimeout(1500).catch(() => {});
+    }
     await context.close();
     await browser.close();
   }
