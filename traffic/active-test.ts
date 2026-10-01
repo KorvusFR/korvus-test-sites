@@ -18,6 +18,17 @@ const SITE = {
 const STAGING_CONFIG_URL = `https://cdn.korvus.fr/v2/s-staging/${SITE.siteKey}.js`;
 const STAGING_ENGINE_URL = "https://cdn.korvus.fr/v2/korvus.staging.js";
 const V1_ENGINE_URL = "https://cdn.korvus.fr/v1/korvus.min.js";
+const INGEST_URL = "https://app.korvus.fr/api/ingest";
+// The engine sends its first batch about 30 s after boot. Closing the browser
+// before that sends nothing at all: the flow must wait for an accepted batch.
+const INGEST_TIMEOUT_MS = 75_000;
+
+interface IngestSend {
+  events: string[];
+  siteConfigState: string;
+  status: number;
+  version: string;
+}
 
 function usage(): never {
   throw new Error(
@@ -46,6 +57,44 @@ function parseArgs(argv: string[]): Options {
 
 function step(name: string, detail: string): void {
   console.log(`STEP ${name}: PASS — ${detail}`);
+}
+
+function watchIngest(page: Page): IngestSend[] {
+  const sends: IngestSend[] = [];
+  page.on("response", (response) => {
+    const request = response.request();
+    if (request.method() !== "POST" || !request.url().startsWith(INGEST_URL)) return;
+    let body: { events?: Array<{ event_name?: string }>; session?: Record<string, unknown> } = {};
+    try {
+      body = request.postDataJSON() ?? {};
+    } catch {
+      // Unreadable body: the send is still recorded, with no event.
+    }
+    sends.push({
+      events: (body.events ?? []).map((event) => String(event.event_name ?? "")),
+      siteConfigState: String(body.session?.site_config_state ?? "none"),
+      status: response.status(),
+      version: String(body.session?.snippet_version ?? "unknown"),
+    });
+  });
+  return sends;
+}
+
+async function requireIngested(page: Page, sends: IngestSend[], eventName: string): Promise<void> {
+  const deadline = Date.now() + INGEST_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const accepted = sends.find((send) => send.status === 202 && send.events.includes(eventName));
+    if (accepted) {
+      step(
+        "ingest",
+        `202 with ${eventName}; version=${accepted.version}; site_config_state=${accepted.siteConfigState}`,
+      );
+      return;
+    }
+    await page.waitForTimeout(1_000);
+  }
+  const seen = sends.map((send) => `${send.status}[${send.events.join(",")}]`).join(" ") || "no POST";
+  throw new Error(`ingest did not accept ${eventName} within ${INGEST_TIMEOUT_MS / 1000} s (seen: ${seen})`);
 }
 
 async function requireVisible(page: Page, selector: string, label: string): Promise<void> {
@@ -120,7 +169,7 @@ async function runFlow(options: Options): Promise<void> {
       console.log("PLAN init-script: window.__korvus_booted = true");
       console.log(`PLAN engine=${V1_ENGINE_URL}`);
     }
-    console.log("PLAN consent > product > add_to_cart > cart > checkout > promo DOOM20 > payment > purchase");
+    console.log("PLAN consent > product > add_to_cart > cart > checkout > promo DOOM20 > payment > purchase > ingest 202");
     console.log("RESULT dry-run PASS");
     return;
   }
@@ -135,6 +184,7 @@ async function runFlow(options: Options): Promise<void> {
       if (message.type() === "error") console.error(`BROWSER ${message.type()}: ${message.text()}`);
     });
 
+    const sends = watchIngest(page);
     await page.goto(productUrl, { waitUntil: "domcontentloaded" });
     if (options.assets === "staging") await injectStaging(page);
     else if (options.assets === "v1-smoke") await injectV1Smoke(page);
@@ -182,8 +232,8 @@ async function runFlow(options: Options): Promise<void> {
     const resultUrl = new URL(page.url());
     const orderId = resultUrl.searchParams.get("order");
     if (!orderId?.startsWith("DC-")) throw new Error("confirmation has no Doomcheck order id");
-    await page.waitForTimeout(2_000);
     step("purchase", `order_id=${orderId}; consent=granted`);
+    await requireIngested(page, sends, "purchase_observed");
     console.log(`RESULT active-test PASS site=${options.site} assets=${options.assets} marker=${marker}`);
   } finally {
     await context.close();
