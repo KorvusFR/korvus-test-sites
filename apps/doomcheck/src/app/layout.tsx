@@ -50,7 +50,9 @@ export default function RootLayout({
         {process.env.NODE_ENV === "production" && (
           <>
             <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001013",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"https://app.korvus.fr/api/ingest",platform:"custom"};` }} />
-            <script src="https://cdn.korvus.fr/v1/korvus.min.js" defer />
+            {/* Moteur V2 : la config du site (v2/s/<site_key>.js) avant le moteur, dans cet ordre. */}
+            <script src="https://cdn.korvus.fr/v2/s/c26715146ef8af54.js" defer />
+            <script src="https://cdn.korvus.fr/v2/korvus.min.js" defer />
           </>
         )}
       </head>
