@@ -33,6 +33,10 @@ on:
         description: "Ref/SHA of KorvusFR/korvus to checkout (default: v1.26.0, the frozen V1 engine)"
         required: false
         default: "v1.26.0"
+      site_configs:
+        description: "true = compile the V2 site configs of the platform ref and inject them before the engine (V2 engine only)"
+        required: false
+        default: "false"
 
 concurrency:
   group: snippet-e2e-${{ github.ref }}
@@ -44,7 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
-      fail-fast: true
+      # Mesure V2 avec configs : on veut le resultat des cinq navigateurs, pas
+      # l'arret au premier rouge.
+      fail-fast: ${{ github.event.inputs.site_configs != 'true' }}
       matrix:
         include:
           # REQUIRED — bloquants
@@ -128,6 +134,27 @@ jobs:
       - name: Build snippet (korvus.min.js)
         working-directory: platform
         run: npm run snippet:build
+
+      # Moteur V2 : la config du site fait foi. Les configs des faux sites sont
+      # compilees depuis le meme checkout platform que le moteur, contre le
+      # manifeste que ce build vient de produire.
+      - name: Compile V2 site configs
+        if: github.event.inputs.site_configs == 'true'
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          REFERENCE_DIR="$RUNNER_TEMP/engine-reference"
+          OUT_DIR="$RUNNER_TEMP/site-configs"
+          mkdir -p "$REFERENCE_DIR"
+          cp snippet/dist/engine-manifest.json "$REFERENCE_DIR/engine-manifest.json"
+          SHA=$(sha256sum "$REFERENCE_DIR/engine-manifest.json" | cut -d' ' -f1)
+          VERSION=$(node -p 'require("./snippet/version.json").version')
+          printf '{"manifest_sha256":"%s","state":"present","tag":"v%s"}\n' "$SHA" "$VERSION" > "$REFERENCE_DIR/reference.json"
+          node --import tsx scripts/build-site-configs.ts \
+            --out "$OUT_DIR" --proof-out "$RUNNER_TEMP/site-proof-configs" \
+            --engine-reference "$REFERENCE_DIR" | tail -3
+          test -s "$OUT_DIR/c26715146ef8af54.js"
+          echo "KORVUS_SITE_CONFIG_DIR=$OUT_DIR" >> "$GITHUB_ENV"
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4

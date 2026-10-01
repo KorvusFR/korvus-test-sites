@@ -33,6 +33,33 @@ const SITE_DEFAULTS: Record<string, SnippetConfig> = {
   },
 }
 
+// --- Config de site V2 (optionnelle) ---
+
+// Le moteur V2 lit `window.__korvusSite`, pose par le fichier de config du site
+// (`v2/s/<site_key>.js`) AVANT lui. Quand `KORVUS_SITE_CONFIG_DIR` pointe vers un
+// dossier de configs compilees (sortie de `scripts/build-site-configs.ts` cote
+// platform), la config du faux site est injectee avant le moteur, comme sur une
+// vraie page. Sans la variable, rien ne change : c'est la suite du moteur V1.
+const SITE_KEYS: Record<string, string> = {
+  "00000000-0000-4000-a000-000000001013": "c26715146ef8af54", // doomcheck.me
+}
+
+const siteConfigCode = new Map<string, string | null>()
+
+function getSiteConfigCode(websiteId: string): string | null {
+  const directory = process.env.KORVUS_SITE_CONFIG_DIR
+  const siteKey = SITE_KEYS[websiteId]
+  if (!directory || !siteKey) return null
+  if (!siteConfigCode.has(siteKey)) {
+    const file = path.join(directory, `${siteKey}.js`)
+    if (!fs.existsSync(file)) {
+      throw new Error(`KORVUS_SITE_CONFIG_DIR is set but ${file} is missing`)
+    }
+    siteConfigCode.set(siteKey, fs.readFileSync(file, "utf-8"))
+  }
+  return siteConfigCode.get(siteKey) ?? null
+}
+
 // --- Snippet code (read once at module load) ---
 
 // Default snippet path: relative aux checkout principal `code/platform/snippet/
@@ -117,6 +144,10 @@ export async function injectSnippet(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(window as any).__korvus = cfg
   }, config)
+
+  // Config de site V2 : avant le moteur, comme la balise d'installation.
+  const siteConfig = getSiteConfigCode(config.websiteId)
+  if (siteConfig !== null) await page.addInitScript(siteConfig)
 
   // Inject the snippet code — readConfig() runs synchronously at eval time
   const code = getSnippetCode()
