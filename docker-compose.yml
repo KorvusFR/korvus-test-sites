@@ -20,7 +20,7 @@ services:
     build:
       context: ./apps/taguardian-com
       args:
-        NEXT_PUBLIC_GTM_ID: ""
+        NEXT_PUBLIC_GTM_ID: "GTM-NZ545JC5"
     expose:
       - "3000"
     networks:
