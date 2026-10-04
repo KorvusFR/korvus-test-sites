@@ -155,16 +155,58 @@ if(__proofDiagnostic){
     };
   })();
 }else{
-  window.__korvus={
-    websiteId:"${isFR ? "00000000-0000-4000-a000-000000001011" : "00000000-0000-4000-a000-000000001010"}",
-    apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",
-    endpoint:"/api/ingest",
-    platform:"custom"
-  };
-}`,
+  // MODE NORMAL -- l'hote choisit le site et le moteur.
+  //
+  // Ce build sert trois domaines et isFR est fige au build : il posait donc
+  // l'identifiant du site .com sur athletedatahub.fr, et chaque envoi du .fr
+  // etait refuse (403). L'identifiant vient maintenant du nom d'hote.
+  //
+  // athletedatahub.com et athletedatahub.fr chargent le moteur V2 depuis le CDN,
+  // precede de la config de leur site (v2/s/<site_key>.js). Tout autre hote
+  // (demo.korvus.fr, localhost) garde le comportement d'avant, a l'identique :
+  // moteur V1 servi par ce site.
+  var __v2Site={
+    "athletedatahub.com":{id:"00000000-0000-4000-a000-000000001010",key:"27f2183b4c8cd297"},
+    "athletedatahub.fr":{id:"00000000-0000-4000-a000-000000001011",key:"ead4749f24de28b0"}
+  }[location.hostname]||null;
+  if(__v2Site){
+    window.__korvus={
+      websiteId:__v2Site.id,
+      apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",
+      endpoint:"https://app.korvus.fr/api/ingest",
+      platform:"custom"
+    };
+  }else{
+    window.__korvus={
+      websiteId:"${isFR ? "00000000-0000-4000-a000-000000001011" : "00000000-0000-4000-a000-000000001010"}",
+      apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",
+      endpoint:"/api/ingest",
+      platform:"custom"
+    };
+  }
+}
+// Chargement du moteur. Les scripts ajoutes avec async=false s'executent dans
+// l'ordre d'insertion : la config du site passe donc avant le moteur V2. Si la
+// config ne se charge pas, le moteur demarre quand meme (config absente).
+(function(){
+  function add(src){
+    var s=document.createElement("script");
+    s.src=src;
+    s.async=false;
+    document.head.appendChild(s);
+  }
+  if(typeof __v2Site!=="undefined"&&__v2Site){
+    add("https://cdn.korvus.fr/v2/s/"+__v2Site.key+".js");
+    add("https://cdn.korvus.fr/v2/korvus.min.js");
+  }else{
+    var v1=document.createElement("script");
+    v1.src="/korvus.min.js";
+    v1.async=true;
+    document.head.appendChild(v1);
+  }
+})();`,
           }}
         />
-        <script src="/korvus.min.js" async />
       </head>
       <body className="min-h-screen flex flex-col bg-[#fafaf7] text-[#07111f]">
         <LocaleProvider>
