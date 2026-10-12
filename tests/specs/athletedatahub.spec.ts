@@ -105,6 +105,152 @@ test.describe("ADH — proof capture diagnostic", () => {
   })
 })
 
+// La balise choisit son chemin sur `location.hostname`, et le serveur de test
+// ne repond que sur localhost : on lui fait donc servir la page sous le nom
+// d'hote voulu. Le CDN et le moteur local sont remplaces par des scripts vides,
+// pour ne compter que les chargements demandes par la balise elle-meme, sans
+// qu'aucun moteur ne tourne ni que rien ne sorte vers les vrais sites.
+const ORG_CONFIG_URL = "https://cdn.korvus.fr/v2/o/a1ffd7744be8b248.js"
+const V2_ENGINE_URL = "https://cdn.korvus.fr/v2/korvus.min.js"
+const LOCAL_V1_ENGINE = "moteur V1 local"
+const EMPTY_SCRIPT = { status: 200, contentType: "application/javascript", body: "" }
+
+interface TagVisit {
+  loads: string[]
+  releaseConfig: () => void
+  tag: () => Promise<Record<string, unknown>>
+}
+
+async function visitAsHost(
+  page: Page,
+  localOrigin: string,
+  host: string,
+  options: { search?: string; holdConfig?: boolean } = {},
+): Promise<TagVisit> {
+  const loads: string[] = []
+  let releaseConfig: () => void = () => {}
+  const configHeld = new Promise<void>((resolve) => {
+    releaseConfig = resolve
+  })
+
+  // Le client de dev de Next ouvre une socket vers l'hote de la page : on la
+  // garde muette plutot que de la laisser joindre le vrai site.
+  await page.routeWebSocket(/.*/, () => {})
+  // Chunk et politique de preuve, demandes a demo.korvus.fr en mode preuve.
+  await page.route("https://demo.korvus.fr/**", (route) => route.fulfill(EMPTY_SCRIPT))
+  await page.route("https://cdn.korvus.fr/**", async (route) => {
+    const url = route.request().url()
+    loads.push(url)
+    if (options.holdConfig && url === ORG_CONFIG_URL) await configHeld
+    await route.fulfill(EMPTY_SCRIPT).catch(() => {
+      /* page fermee pendant que la config etait retenue */
+    })
+  })
+  // Enregistree en dernier : elle prime sur les deux precedentes quand l'hote
+  // servi est demo.korvus.fr.
+  await page.route(`https://${host}/**`, async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === "/korvus.min.js") {
+      loads.push(LOCAL_V1_ENGINE)
+      await route.fulfill(EMPTY_SCRIPT)
+      return
+    }
+    const response = await route.fetch({ url: `${localOrigin}${url.pathname}${url.search}` })
+    await route.fulfill({ response })
+  })
+
+  await page.goto(`https://${host}/${options.search ?? ""}`, { waitUntil: "domcontentloaded" })
+
+  return {
+    loads,
+    releaseConfig,
+    tag: () =>
+      page.evaluate(() => {
+        const w = window as typeof window & { __korvus?: Record<string, unknown> }
+        return { ...w.__korvus }
+      }),
+  }
+}
+
+test.describe("ADH — balise finale par hote", () => {
+  // Le secours de la balise part a 3 s : on attend au-dela avant de recompter,
+  // pour prouver qu'il ne charge pas un second moteur.
+  const AFTER_FALLBACK_MS = 3_500
+
+  for (const host of ["athletedatahub.com", "athletedatahub.fr"]) {
+    test(`${host} : une config d'organisation, puis un moteur V2, une seule fois`, async ({
+      page,
+      baseURL,
+    }) => {
+      const visit = await visitAsHost(page, baseURL!, host)
+
+      await expect.poll(() => visit.loads).toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+      await page.waitForTimeout(AFTER_FALLBACK_MS)
+      expect(visit.loads).toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+
+      // Les deux champs du guide, et eux seuls : pas de websiteId (l'ingestion
+      // retrouve le site par l'Origin), pas de cle de site.
+      expect(await visit.tag()).toEqual({
+        apiKey: adh.apiKey,
+        orgKey: "a1ffd7744be8b248",
+      })
+    })
+  }
+
+  test("une config muette ne retient ni la page ni le moteur", async ({ page, baseURL }) => {
+    // `goto` rend la main a DOMContentLoaded alors que la config n'a pas
+    // repondu : c'est deja la preuve que la page ne l'attend pas.
+    const visit = await visitAsHost(page, baseURL!, "athletedatahub.com", { holdConfig: true })
+    expect(visit.loads).toEqual([ORG_CONFIG_URL])
+
+    // Le moteur part seul, config toujours retenue.
+    await expect
+      .poll(() => visit.loads, { timeout: 8_000 })
+      .toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+
+    // La config arrive apres coup : elle ne relance rien.
+    visit.releaseConfig()
+    await page.waitForTimeout(1_000)
+    expect(visit.loads).toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+  })
+
+  test("demo.korvus.fr, absent du fichier d'organisation, garde le moteur V1 local", async ({
+    page,
+    baseURL,
+  }) => {
+    const visit = await visitAsHost(page, baseURL!, "demo.korvus.fr")
+
+    await expect.poll(() => visit.loads).toEqual([LOCAL_V1_ENGINE])
+    await page.waitForTimeout(AFTER_FALLBACK_MS)
+    expect(visit.loads).toEqual([LOCAL_V1_ENGINE])
+
+    const tag = await visit.tag()
+    expect(tag.orgKey).toBeUndefined()
+    expect(tag.endpoint).toBe("/api/ingest")
+    expect(typeof tag.websiteId).toBe("string")
+  })
+
+  for (const search of ["?proof-diagnostic=1", "?film=1"]) {
+    test(`${search} sur athletedatahub.com garde le moteur V1 local et sa configuration de preuve`, async ({
+      page,
+      baseURL,
+    }) => {
+      const visit = await visitAsHost(page, baseURL!, "athletedatahub.com", { search })
+
+      await expect.poll(() => visit.loads).toEqual([LOCAL_V1_ENGINE])
+      await page.waitForTimeout(AFTER_FALLBACK_MS)
+      expect(visit.loads).toEqual([LOCAL_V1_ENGINE])
+
+      const tag = await visit.tag()
+      expect(tag.orgKey).toBeUndefined()
+      expect(tag.websiteId).toBeUndefined()
+      expect(tag.enableProofCapture).toBe(true)
+      expect(tag.proofChunkUrl).toBe("https://demo.korvus.fr/korvus-proof.min.js")
+      expect(tag.proofPolicyId).toBe("f2c220321a992bef70b65931")
+    })
+  }
+})
+
 test.describe("ADH — bilingual storefront", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
