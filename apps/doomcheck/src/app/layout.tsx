@@ -49,12 +49,15 @@ export default function RootLayout({
         {/* INJECT_SCRIPTS */}
         {/*
           Balise finale du moteur V2 (platform : docs/snippet-install-site-config.md),
-          posee telle que le guide la donne : UNE balise en ligne, deux champs.
+          posee telle que le guide la donne : UNE balise en ligne.
 
-          - apiKey : la cle de l'organisation de test. Sans elle le moteur ne
-            demarre pas.
-          - orgKey : choisit le fichier de l'organisation (v2/o/<org_key>.js) ; le
-            moteur y prend la config du site d'apres l'hote exact de la page.
+          - apiKey est le SEUL champ de window.__korvus : la cle de l'organisation
+            de test, sans laquelle le moteur ne demarre pas.
+          - La cle d'organisation ne vit que dans le chargeur. Il demande le fichier
+            du DOMAINE de la page, v2/o/<org_key>/<hote>.js, qui pose la config de
+            ce site (window.__korvusSite). Elle ne doit PAS entrer dans
+            window.__korvus : le moteur y lirait la demande d'un fichier commun a
+            toute l'organisation, et ignorerait la config du domaine.
 
           Volontairement absents :
           - websiteId : sans lui l'ingestion retrouve le site par l'Origin de la
@@ -74,10 +77,9 @@ export default function RootLayout({
             dangerouslySetInnerHTML={{
               __html: `
 window.__korvus = {
-  apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001",
-  orgKey: "a1ffd7744be8b248"
+  apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001"
 };
-(function () {
+(function (orgKey) {
   var engineStarted = false;
   function loadEngine() {
     if (engineStarted) return;
@@ -87,21 +89,19 @@ window.__korvus = {
     engine.async = true;
     document.head.appendChild(engine);
   }
-  function loadOrganisationConfig(orgKey) {
-    if (typeof orgKey !== "string" || !/^[0-9a-f]{16}$/.test(orgKey)) {
-      loadEngine();
-      return;
-    }
-    var config = document.createElement("script");
-    config.src = "https://cdn.korvus.fr/v2/o/" + orgKey + ".js";
-    config.async = true;
-    config.onload = loadEngine;
-    config.onerror = loadEngine;
-    setTimeout(loadEngine, 3000);
-    document.head.appendChild(config);
+  var host = location.hostname;
+  if (!/^[0-9a-f]{16}$/.test(orgKey) || !/^[a-z0-9.-]{1,253}$/.test(host)) {
+    loadEngine();
+    return;
   }
-  loadOrganisationConfig(window.__korvus.orgKey);
-})();
+  var config = document.createElement("script");
+  config.src = "https://cdn.korvus.fr/v2/o/" + orgKey + "/" + host + ".js";
+  config.async = true;
+  config.onload = loadEngine;
+  config.onerror = loadEngine;
+  setTimeout(loadEngine, 3000);
+  document.head.appendChild(config);
+})("a1ffd7744be8b248");
 `,
             }}
           />

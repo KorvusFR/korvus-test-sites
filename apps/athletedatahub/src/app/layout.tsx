@@ -102,9 +102,9 @@ if(__film){
 }
 
 var __proofDiagnostic=__sp.get("proof-diagnostic")==="1"||__film;
-// Vrai seulement en mode normal sur un hote declare dans le fichier de
-// l'organisation (voir plus bas). Les modes tournage et proof-diagnostic le
-// laissent a false, sur tous les hotes : ils gardent le moteur V1 local.
+// Vrai seulement en mode normal sur un des deux hotes qui portent la balise
+// finale (voir plus bas). Les modes tournage et proof-diagnostic le laissent a
+// false, sur tous les hotes : ils gardent le moteur V1 local.
 var __finalTag=false;
 if(__proofDiagnostic){
   window.Cookiebot={consent:{statistics:true}};
@@ -162,26 +162,28 @@ if(__proofDiagnostic){
   // MODE NORMAL -- l'hote choisit entre la balise finale et le moteur V1 local.
   //
   // athletedatahub.com et athletedatahub.fr portent la balise finale du moteur
-  // V2 (platform : docs/snippet-install-site-config.md) : la cle API et la cle
-  // d'organisation, rien d'autre. Les deux hotes sont declares tels quels dans
-  // le fichier de l'organisation (v2/o/<org_key>.js) ; le moteur y prend la
-  // config du site d'apres l'hote exact de la page. Il n'y a donc plus de cle
-  // de site a choisir ici, et plus de websiteId : l'ingestion retrouve le site
-  // par l'Origin de la requete (resolveWebsiteFromOrigin), comme en mode preuve
-  // ci-dessus. endpoint et platform ont disparu de ces deux hotes : le moteur
-  // vise deja https://app.korvus.fr/api/ingest par defaut et ne lit pas
-  // platform.
+  // V2 (platform : docs/snippet-install-site-config.md). window.__korvus n'y
+  // garde que la cle API. La cle d'organisation ne vit que dans le chargeur, plus
+  // bas : il demande le fichier du DOMAINE de la page, v2/o/<org_key>/<hote>.js,
+  // qui pose la config de ce site. Elle ne doit PAS entrer dans window.__korvus :
+  // le moteur y lirait la demande d'un fichier commun a toute l'organisation, et
+  // ignorerait la config du domaine.
   //
-  // La liste des hotes est EXPLICITE, et ce n'est pas une precaution de style :
-  // demo.korvus.fr et localhost ne sont pas declares dans le fichier de
-  // l'organisation. Avec la balise finale ils se retrouveraient en moteur V2
-  // sans config (hote inconnu = etat absent), en silence. Tout autre hote garde
+  // Il n'y a donc plus de table hote -> cle de site, et plus de websiteId :
+  // l'ingestion retrouve le site par l'Origin de la requete
+  // (resolveWebsiteFromOrigin), comme en mode preuve ci-dessus. endpoint et
+  // platform ont disparu de ces deux hotes : le moteur vise deja
+  // https://app.korvus.fr/api/ingest par defaut et ne lit pas platform.
+  //
+  // La liste des hotes reste EXPLICITE, et ce n'est pas une precaution de style :
+  // le chargeur demanderait aussi bien le fichier de demo.korvus.fr ou de
+  // localhost, qui n'existe pas. La reponse serait un 404 et ces hotes se
+  // retrouveraient en moteur V2 sans config, en silence. Tout autre hote garde
   // donc le comportement d'avant, a l'identique : moteur V1 servi par ce site.
   __finalTag=location.hostname==="athletedatahub.com"||location.hostname==="athletedatahub.fr";
   if(__finalTag){
     window.__korvus={
-      apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",
-      orgKey:"a1ffd7744be8b248"
+      apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001"
     };
   }else{
     window.__korvus={
@@ -193,7 +195,7 @@ if(__proofDiagnostic){
   }
 }
 // Chargement du moteur : UN seul chemin par page.
-(function(){
+(function(orgKey){
   if(!__finalTag){
     // Modes tournage / proof-diagnostic sur tous les hotes, et mode normal hors
     // des deux hotes ci-dessus : moteur V1 servi par ce site, inchange.
@@ -216,21 +218,19 @@ if(__proofDiagnostic){
     engine.async=true;
     document.head.appendChild(engine);
   }
-  function loadOrganisationConfig(orgKey){
-    if(typeof orgKey!=="string"||!/^[0-9a-f]{16}$/.test(orgKey)){
-      loadEngine();
-      return;
-    }
-    var config=document.createElement("script");
-    config.src="https://cdn.korvus.fr/v2/o/"+orgKey+".js";
-    config.async=true;
-    config.onload=loadEngine;
-    config.onerror=loadEngine;
-    setTimeout(loadEngine,3000);
-    document.head.appendChild(config);
+  var host=location.hostname;
+  if(!/^[0-9a-f]{16}$/.test(orgKey)||!/^[a-z0-9.-]{1,253}$/.test(host)){
+    loadEngine();
+    return;
   }
-  loadOrganisationConfig(window.__korvus.orgKey);
-})();`,
+  var config=document.createElement("script");
+  config.src="https://cdn.korvus.fr/v2/o/"+orgKey+"/"+host+".js";
+  config.async=true;
+  config.onload=loadEngine;
+  config.onerror=loadEngine;
+  setTimeout(loadEngine,3000);
+  document.head.appendChild(config);
+})("a1ffd7744be8b248");`,
           }}
         />
       </head>

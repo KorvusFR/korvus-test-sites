@@ -110,7 +110,9 @@ test.describe("ADH — proof capture diagnostic", () => {
 // d'hote voulu. Le CDN et le moteur local sont remplaces par des scripts vides,
 // pour ne compter que les chargements demandes par la balise elle-meme, sans
 // qu'aucun moteur ne tourne ni que rien ne sorte vers les vrais sites.
-const ORG_CONFIG_URL = "https://cdn.korvus.fr/v2/o/a1ffd7744be8b248.js"
+// Un fichier par domaine, range sous la cle d'organisation.
+const domainConfigUrl = (host: string): string =>
+  `https://cdn.korvus.fr/v2/o/a1ffd7744be8b248/${host}.js`
 const V2_ENGINE_URL = "https://cdn.korvus.fr/v2/korvus.min.js"
 const LOCAL_V1_ENGINE = "moteur V1 local"
 const EMPTY_SCRIPT = { status: 200, contentType: "application/javascript", body: "" }
@@ -141,7 +143,7 @@ async function visitAsHost(
   await page.route("https://cdn.korvus.fr/**", async (route) => {
     const url = route.request().url()
     loads.push(url)
-    if (options.holdConfig && url === ORG_CONFIG_URL) await configHeld
+    if (options.holdConfig && url === domainConfigUrl(host)) await configHeld
     await route.fulfill(EMPTY_SCRIPT).catch(() => {
       /* page fermee pendant que la config etait retenue */
     })
@@ -185,43 +187,43 @@ test.describe("ADH — balise finale par hote", () => {
   })
 
   for (const host of ["athletedatahub.com", "athletedatahub.fr"]) {
-    test(`${host} : une config d'organisation, puis un moteur V2, une seule fois`, async ({
+    test(`${host} : la config de son domaine, puis un moteur V2, une seule fois`, async ({
       page,
       baseURL,
     }) => {
       const visit = await visitAsHost(page, baseURL!, host)
 
-      await expect.poll(() => visit.loads).toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+      const expected = [domainConfigUrl(host), V2_ENGINE_URL]
+      await expect.poll(() => visit.loads).toEqual(expected)
       await page.waitForTimeout(AFTER_FALLBACK_MS)
-      expect(visit.loads).toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+      expect(visit.loads).toEqual(expected)
 
-      // Les deux champs du guide, et eux seuls : pas de websiteId (l'ingestion
-      // retrouve le site par l'Origin), pas de cle de site.
-      expect(await visit.tag()).toEqual({
-        apiKey: adh.apiKey,
-        orgKey: "a1ffd7744be8b248",
-      })
+      // La cle API, et elle seule : pas de websiteId (l'ingestion retrouve le
+      // site par l'Origin), et surtout pas de cle d'organisation, que le moteur
+      // lirait comme la demande d'un fichier commun a toute l'organisation.
+      expect(await visit.tag()).toEqual({ apiKey: adh.apiKey })
     })
   }
 
   test("une config muette ne retient ni la page ni le moteur", async ({ page, baseURL }) => {
     // `goto` rend la main a DOMContentLoaded alors que la config n'a pas
     // repondu : c'est deja la preuve que la page ne l'attend pas.
-    const visit = await visitAsHost(page, baseURL!, "athletedatahub.com", { holdConfig: true })
-    expect(visit.loads).toEqual([ORG_CONFIG_URL])
+    const host = "athletedatahub.com"
+    const visit = await visitAsHost(page, baseURL!, host, { holdConfig: true })
+    expect(visit.loads).toEqual([domainConfigUrl(host)])
 
     // Le moteur part seul, config toujours retenue.
     await expect
       .poll(() => visit.loads, { timeout: 8_000 })
-      .toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+      .toEqual([domainConfigUrl(host), V2_ENGINE_URL])
 
     // La config arrive apres coup : elle ne relance rien.
     visit.releaseConfig()
     await page.waitForTimeout(1_000)
-    expect(visit.loads).toEqual([ORG_CONFIG_URL, V2_ENGINE_URL])
+    expect(visit.loads).toEqual([domainConfigUrl(host), V2_ENGINE_URL])
   })
 
-  test("demo.korvus.fr, absent du fichier d'organisation, garde le moteur V1 local", async ({
+  test("demo.korvus.fr, qui n'a pas de fichier de domaine, garde le moteur V1 local", async ({
     page,
     baseURL,
   }) => {
