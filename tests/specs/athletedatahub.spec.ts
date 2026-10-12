@@ -177,6 +177,13 @@ test.describe("ADH — balise finale par hote", () => {
   // pour prouver qu'il ne charge pas un second moteur.
   const AFTER_FALLBACK_MS = 3_500
 
+  // Une image ou un chunk peut encore etre en vol vers le serveur local quand
+  // le test se termine : sans ceci, la fermeture de la page fait echouer le
+  // test sur une requete qu'il n'attendait pas.
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: "ignoreErrors" })
+  })
+
   for (const host of ["athletedatahub.com", "athletedatahub.fr"]) {
     test(`${host} : une config d'organisation, puis un moteur V2, une seule fois`, async ({
       page,
