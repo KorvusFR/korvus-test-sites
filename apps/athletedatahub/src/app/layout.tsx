@@ -218,8 +218,9 @@ if(__proofDiagnostic){
     engine.async=true;
     document.head.appendChild(engine);
   }
-  var host=location.hostname;
-  if(!/^[0-9a-f]{16}$/.test(orgKey)||!/^[a-z0-9.-]{1,253}$/.test(host)){
+  var host=location.hostname.replace(/\\.$/,"");
+  var declarable=/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+  if(!/^[0-9a-f]{16}$/.test(orgKey)||host.length>253||!declarable.test(host)){
     loadEngine();
     return;
   }
