@@ -102,6 +102,10 @@ if(__film){
 }
 
 var __proofDiagnostic=__sp.get("proof-diagnostic")==="1"||__film;
+// Vrai seulement en mode normal sur un des deux hotes qui portent la balise
+// finale (voir plus bas). Les modes tournage et proof-diagnostic le laissent a
+// false, sur tous les hotes : ils gardent le moteur V1 local.
+var __finalTag=false;
 if(__proofDiagnostic){
   window.Cookiebot={consent:{statistics:true}};
   // Epinglage historique du sid : seulement si rien n'est deja pose. Le mode
@@ -155,26 +159,31 @@ if(__proofDiagnostic){
     };
   })();
 }else{
-  // MODE NORMAL -- l'hote choisit le site et le moteur.
+  // MODE NORMAL -- l'hote choisit entre la balise finale et le moteur V1 local.
   //
-  // Ce build sert trois domaines et isFR est fige au build : il posait donc
-  // l'identifiant du site .com sur athletedatahub.fr, et chaque envoi du .fr
-  // etait refuse (403). L'identifiant vient maintenant du nom d'hote.
+  // athletedatahub.com et athletedatahub.fr portent la balise finale du moteur
+  // V2 (platform : docs/snippet-install-site-config.md). window.__korvus n'y
+  // garde que la cle API. La cle d'organisation ne vit que dans le chargeur, plus
+  // bas : il demande le fichier du DOMAINE de la page, v2/o/<org_key>/<hote>.js,
+  // qui pose la config de ce site. Elle ne doit PAS entrer dans window.__korvus :
+  // le moteur y lirait la demande d'un fichier commun a toute l'organisation, et
+  // ignorerait la config du domaine.
   //
-  // athletedatahub.com et athletedatahub.fr chargent le moteur V2 depuis le CDN,
-  // precede de la config de leur site (v2/s/<site_key>.js). Tout autre hote
-  // (demo.korvus.fr, localhost) garde le comportement d'avant, a l'identique :
-  // moteur V1 servi par ce site.
-  var __v2Site={
-    "athletedatahub.com":{id:"00000000-0000-4000-a000-000000001010",key:"27f2183b4c8cd297"},
-    "athletedatahub.fr":{id:"00000000-0000-4000-a000-000000001011",key:"ead4749f24de28b0"}
-  }[location.hostname]||null;
-  if(__v2Site){
+  // Il n'y a donc plus de table hote -> cle de site, et plus de websiteId :
+  // l'ingestion retrouve le site par l'Origin de la requete
+  // (resolveWebsiteFromOrigin), comme en mode preuve ci-dessus. endpoint et
+  // platform ont disparu de ces deux hotes : le moteur vise deja
+  // https://app.korvus.fr/api/ingest par defaut et ne lit pas platform.
+  //
+  // La liste des hotes reste EXPLICITE, et ce n'est pas une precaution de style :
+  // le chargeur demanderait aussi bien le fichier de demo.korvus.fr ou de
+  // localhost, qui n'existe pas. La reponse serait un 404 et ces hotes se
+  // retrouveraient en moteur V2 sans config, en silence. Tout autre hote garde
+  // donc le comportement d'avant, a l'identique : moteur V1 servi par ce site.
+  __finalTag=location.hostname==="athletedatahub.com"||location.hostname==="athletedatahub.fr";
+  if(__finalTag){
     window.__korvus={
-      websiteId:__v2Site.id,
-      apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",
-      endpoint:"https://app.korvus.fr/api/ingest",
-      platform:"custom"
+      apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001"
     };
   }else{
     window.__korvus={
@@ -185,26 +194,44 @@ if(__proofDiagnostic){
     };
   }
 }
-// Chargement du moteur. Les scripts ajoutes avec async=false s'executent dans
-// l'ordre d'insertion : la config du site passe donc avant le moteur V2. Si la
-// config ne se charge pas, le moteur demarre quand meme (config absente).
-(function(){
-  function add(src){
-    var s=document.createElement("script");
-    s.src=src;
-    s.async=false;
-    document.head.appendChild(s);
-  }
-  if(typeof __v2Site!=="undefined"&&__v2Site){
-    add("https://cdn.korvus.fr/v2/s/"+__v2Site.key+".js");
-    add("https://cdn.korvus.fr/v2/korvus.min.js");
-  }else{
+// Chargement du moteur : UN seul chemin par page.
+(function(orgKey){
+  if(!__finalTag){
+    // Modes tournage / proof-diagnostic sur tous les hotes, et mode normal hors
+    // des deux hotes ci-dessus : moteur V1 servi par ce site, inchange.
     var v1=document.createElement("script");
     v1.src="/korvus.min.js";
     v1.async=true;
     document.head.appendChild(v1);
+    return;
   }
-})();`,
+  // Balise finale, telle que le guide la donne. Les scripts sont asynchrones :
+  // ni la config ni le moteur ne retiennent la page. Le moteur part des que la
+  // config a repondu ou echoue, et au plus tard apres 3 s si elle reste muette ;
+  // dans ces deux derniers cas il demarre sans config.
+  var engineStarted=false;
+  function loadEngine(){
+    if(engineStarted)return;
+    engineStarted=true;
+    var engine=document.createElement("script");
+    engine.src="https://cdn.korvus.fr/v2/korvus.min.js";
+    engine.async=true;
+    document.head.appendChild(engine);
+  }
+  var host=location.hostname.replace(/\\.$/,"");
+  var declarable=/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+  if(!/^[0-9a-f]{16}$/.test(orgKey)||host.length>253||!declarable.test(host)){
+    loadEngine();
+    return;
+  }
+  var config=document.createElement("script");
+  config.src="https://cdn.korvus.fr/v2/o/"+orgKey+"/"+host+".js";
+  config.async=true;
+  config.onload=loadEngine;
+  config.onerror=loadEngine;
+  setTimeout(loadEngine,3000);
+  document.head.appendChild(config);
+})("a1ffd7744be8b248");`,
           }}
         />
       </head>

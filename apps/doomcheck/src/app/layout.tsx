@@ -47,13 +47,65 @@ export default function RootLayout({
         )}
         <script dangerouslySetInnerHTML={{ __html: "window.dataLayer=window.dataLayer||[];" }} />
         {/* INJECT_SCRIPTS */}
+        {/*
+          Balise finale du moteur V2 (platform : docs/snippet-install-site-config.md),
+          posee telle que le guide la donne : UNE balise en ligne.
+
+          - apiKey est le SEUL champ de window.__korvus : la cle de l'organisation
+            de test, sans laquelle le moteur ne demarre pas.
+          - La cle d'organisation ne vit que dans le chargeur. Il demande le fichier
+            du DOMAINE de la page, v2/o/<org_key>/<hote>.js, qui pose la config de
+            ce site (window.__korvusSite). Elle ne doit PAS entrer dans
+            window.__korvus : le moteur y lirait la demande d'un fichier commun a
+            toute l'organisation, et ignorerait la config du domaine.
+
+          Volontairement absents :
+          - websiteId : sans lui l'ingestion retrouve le site par l'Origin de la
+            requete, parmi les sites actifs de l'organisation. C'est le mode de la
+            balise finale, donc celui qu'il faut eprouver ici.
+          - endpoint : le moteur vise deja https://app.korvus.fr/api/ingest par
+            defaut.
+          - platform : le moteur ne lit pas ce champ, il detecte la plateforme
+            dans la page.
+
+          Les scripts sont asynchrones : ni la config ni le moteur ne retiennent la
+          page. Le moteur part des que la config a repondu ou echoue, et au plus
+          tard apres 3 s si elle reste muette. Un seul gabarit, sans interpolation.
+        */}
         {process.env.NODE_ENV === "production" && (
-          <>
-            <script dangerouslySetInnerHTML={{ __html: `window.__korvus={websiteId:"00000000-0000-4000-a000-000000001013",apiKey:"kv_test_0000000000000000000000000000000000000000000000000000000000000001",endpoint:"https://app.korvus.fr/api/ingest",platform:"custom"};` }} />
-            {/* Moteur V2 : la config du site (v2/s/<site_key>.js) avant le moteur, dans cet ordre. */}
-            <script src="https://cdn.korvus.fr/v2/s/c26715146ef8af54.js" defer />
-            <script src="https://cdn.korvus.fr/v2/korvus.min.js" defer />
-          </>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+window.__korvus = {
+  apiKey: "kv_test_0000000000000000000000000000000000000000000000000000000000000001"
+};
+(function (orgKey) {
+  var engineStarted = false;
+  function loadEngine() {
+    if (engineStarted) return;
+    engineStarted = true;
+    var engine = document.createElement("script");
+    engine.src = "https://cdn.korvus.fr/v2/korvus.min.js";
+    engine.async = true;
+    document.head.appendChild(engine);
+  }
+  var host = location.hostname.replace(/\\.$/, "");
+  var declarable = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+  if (!/^[0-9a-f]{16}$/.test(orgKey) || host.length > 253 || !declarable.test(host)) {
+    loadEngine();
+    return;
+  }
+  var config = document.createElement("script");
+  config.src = "https://cdn.korvus.fr/v2/o/" + orgKey + "/" + host + ".js";
+  config.async = true;
+  config.onload = loadEngine;
+  config.onerror = loadEngine;
+  setTimeout(loadEngine, 3000);
+  document.head.appendChild(config);
+})("a1ffd7744be8b248");
+`,
+            }}
+          />
         )}
       </head>
       <body className="min-h-screen flex flex-col bg-doom-900 text-slate-200 scan-overlay">
