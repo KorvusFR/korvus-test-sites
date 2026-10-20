@@ -1,6 +1,11 @@
 # --- gtm (ex /opt/gtm) ---
 gtm.korvus.fr {
-	@api path /api/*
+	# Seules les routes qui doivent etre joignables sans basicauth : collecteur
+	# du site (public, CORS), rapport analytics (jeton Bearer), extension Chrome
+	# (secret extension), webhook lemlist (secret). Tout le reste de /api/* est
+	# lu par le dashboard, donc derriere basicauth. Les crons appellent
+	# gtm-app:3000 en direct sur le reseau Docker, pas via Caddy.
+	@api path /api/sa/collect /api/sa/report /api/extension/status /api/contacts/from-extension /api/activities/from-extension /api/companies/search-similar /api/webhooks/lemlist
 	handle @api {
 		reverse_proxy gtm-app:3000
 	}
