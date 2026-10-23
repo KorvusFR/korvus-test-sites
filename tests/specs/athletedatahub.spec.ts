@@ -927,7 +927,7 @@ test.describe("ADH — modes de demo", () => {
     }, CART_FIXTURE)
 
     await page.goto("/cart?bug=promo")
-    await page.fill("#promo-code", "UTMB25")
+    await page.fill("#promo-code", "BLACKFRIDAY25")
 
     const [response] = await Promise.all([
       page.waitForResponse((r) => r.url().includes("/api/panier/code-promo")),
@@ -960,7 +960,7 @@ test.describe("ADH — modes de demo", () => {
     // s'acharne. Le second doit se comporter exactement comme le premier (pas
     // d'etat "pending" colle, pas de message qui disparait).
     for (let attempt = 0; attempt < 2; attempt++) {
-      await page.fill("#promo-code", "UTMB25")
+      await page.fill("#promo-code", "BLACKFRIDAY25")
       const [response] = await Promise.all([
         page.waitForResponse((r) => r.url().includes("/api/panier/code-promo")),
         page.locator("#promo-form button[type=submit]").click(),
@@ -1006,7 +1006,7 @@ test.describe("ADH — modes de demo", () => {
     }, CART_FIXTURE)
 
     await page.goto("/cart")
-    await page.fill("#promo-code", "UTMB25")
+    await page.fill("#promo-code", "BLACKFRIDAY25")
 
     const [response] = await Promise.all([
       page.waitForResponse((r) => r.url().includes("/api/panier/code-promo")),
@@ -1028,7 +1028,7 @@ test.describe("ADH — modes de demo", () => {
     }, CART_FIXTURE)
 
     await page.goto("/cart")
-    await page.fill("#promo-code", "UTMB25")
+    await page.fill("#promo-code", "BLACKFRIDAY25")
     await Promise.all([
       page.waitForResponse((r) => r.url().includes("/api/panier/code-promo")),
       page.locator("#promo-form button[type=submit]").click(),

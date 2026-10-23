@@ -37,7 +37,7 @@ export function PromoCodeForm({ onApplied }: PromoCodeFormProps) {
    * UNIQUEMENT, on vide le champ.
    *
    * Ce n'est pas une coquetterie : c'est la friction qui transforme un refus en
-   * acharnement. Le visiteur doit retaper "UTMB25" en entier a chaque essai, et
+   * acharnement. Le visiteur doit retaper "BLACKFRIDAY25" en entier a chaque essai, et
    * c'est ce qui produit la mediane de 4 clics sur "Appliquer" que la Sentinelle
    * Ergonomie affiche (dossiers `ergo_field_friction_promo_field_cleared` et
    * `ergo_rage_click_promo_apply_rejected` de lib/demo/fixtures/ergonomie.ts
@@ -99,7 +99,7 @@ export function PromoCodeForm({ onApplied }: PromoCodeFormProps) {
             label={t("promoCode", locale)}
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="UTMB25"
+            placeholder="BLACKFRIDAY25"
             autoComplete="off"
           />
         </div>

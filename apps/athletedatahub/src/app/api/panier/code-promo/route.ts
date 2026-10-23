@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 /**
  * Application d'un code promotionnel.
  *
- * Sert la panne de demo `promo` : la campagne "-25 % avant l'UTMB" est en
+ * Sert la panne de demo `promo` : la campagne "Black Friday -25 %" est en
  * ligne, le media tourne, et l'application du code renvoie 500. Le marchand
  * paie deux fois -- le trafic et la remise consentie -- sans rien encaisser.
  *
@@ -18,7 +18,7 @@ import { NextResponse } from "next/server";
  * Voir aussi les contraintes de nommage et de latence documentees dans
  * ../../paiement/route.ts : elles s'appliquent a l'identique ici.
  */
-const VALID_CODE = "UTMB25";
+const VALID_CODE = "BLACKFRIDAY25";
 const DISCOUNT_RATE = 0.25;
 const LOOKUP_LATENCY_MS = 650;
 
