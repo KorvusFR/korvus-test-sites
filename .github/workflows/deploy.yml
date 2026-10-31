@@ -13,8 +13,8 @@ jobs:
       doomcheck: ${{ steps.filter.outputs.doomcheck }}
       infra: ${{ steps.filter.outputs.infra }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
@@ -37,7 +37,7 @@ jobs:
       needs.detect-changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       # Le site de demonstration doit servir EXACTEMENT ce qu'un client recoit.
       #
@@ -76,7 +76,7 @@ jobs:
           grep -o '__korvus_version="[^"]*"' "$DIR/korvus.min.js" | head -1
 
       - name: Sync files to VPS
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
         with:
           host: 91.134.132.241
           username: debian
@@ -86,7 +86,7 @@ jobs:
           overwrite: true
 
       - name: Rebuild and restart
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: 91.134.132.241
           username: debian

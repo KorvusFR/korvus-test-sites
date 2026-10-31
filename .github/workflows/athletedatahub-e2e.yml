@@ -28,19 +28,19 @@ jobs:
             browser: webkit
     steps:
       - name: Checkout test_website
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           path: test_website
 
       - name: Checkout platform
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           repository: KorvusFR/korvus
           path: platform
           token: ${{ secrets.KORVUS_PLATFORM_PAT }}
 
       - name: Setup Node 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
           cache: "npm"
@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: athletedatahub-playwright-${{ matrix.label }}
           path: test_website/tests/playwright-report/
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload traces and screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: athletedatahub-traces-${{ matrix.label }}
           path: test_website/tests/test-results/
